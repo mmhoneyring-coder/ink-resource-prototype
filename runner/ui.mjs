@@ -1,4 +1,5 @@
-import { BOARD_PRESETS, compareBoards, runExplorationBatch, simulateExploration } from './sim-core.mjs';
+import { BOARD_PRESETS } from './sim-core.mjs';
+import { compareBrushBoards, runBrushBatch, simulateBrushRun } from './brush-sim.mjs';
 
 const $ = id => document.getElementById(id);
 const controls = ['compareBtn', 'singleBtn', 'sampleBtn'].map($);
@@ -17,6 +18,11 @@ function readOptions() {
       countMode: $('resourceCountMode').value,
       scaleMode: $('resourceScaleMode').value,
     },
+    brush: {
+      budget: Math.max(0, Number($('brushBudget').value || 240)),
+      radius: Math.max(.25, Number($('brushRadius').value || 2)),
+      startY: Math.max(.5, Math.min(.98, Number($('startY').value || 78) / 100)),
+    },
   };
 }
 
@@ -30,16 +36,16 @@ function renderResults(rows) {
       <td>${r.cols}×${r.rows}</td>
       <td>${r.resourceCount}</td>
       <td>${r.resourceScale.toFixed(2)}×</td>
-      <td>${r.meanResourceRadius.toFixed(1)}</td>
+      <td>${r.meanSplashFound.toFixed(1)}</td>
+      <td>${r.meanBrushDiscoveries.toFixed(1)}</td>
+      <td>${r.meanFinalFound.toFixed(1)}</td>
+      <td><strong>${r.meanActivated.toFixed(1)}</strong></td>
+      <td>${r.p10Activated.toFixed(0)}</td>
+      <td>${r.p50Activated.toFixed(0)}</td>
+      <td>${r.p90Activated.toFixed(0)}</td>
+      <td>${r.meanBrushUsed.toFixed(0)} / ${r.brushBudget.toFixed(0)}</td>
+      <td>${r.meanBrushSegments.toFixed(1)}</td>
       <td>${pct(r.meanCoverage)}</td>
-      <td>${pct(r.meanHitRate)}</td>
-      <td>${r.meanHitCount.toFixed(1)}</td>
-      <td>${pct(r.p10HitRate)}</td>
-      <td>${pct(r.p50HitRate)}</td>
-      <td>${pct(r.p90HitRate)}</td>
-      <td>${pct(r.meanResourceUpper)}</td>
-      <td>${pct(r.meanResourceMiddle)}</td>
-      <td>${pct(r.meanResourceLower)}</td>
     </tr>`).join('');
 }
 
@@ -54,10 +60,10 @@ async function run(kind) {
   await new Promise(resolve => setTimeout(resolve, 20));
   try {
     const rows = kind === 'compare'
-      ? compareBoards(options, BOARD_PRESETS)
-      : [runExplorationBatch(options)];
+      ? compareBrushBoards(options, BOARD_PRESETS)
+      : [runBrushBatch(options)];
     renderResults(rows);
-    $('status').textContent = `${options.trials}試行 × ${options.splashes}スプラッシュ / 資源基準${options.resources.count}個`;
+    $('status').textContent = `${options.trials}試行 × ${options.splashes}スプラッシュ / 筆距離予算 ${options.brush.budget}`;
   } catch (error) {
     console.error(error);
     $('status').textContent = `エラー: ${error.message}`;
@@ -68,7 +74,7 @@ async function run(kind) {
 
 function drawSample() {
   const options = readOptions();
-  const result = simulateExploration({ ...options, returnInk: true, returnResources: true });
+  const result = simulateBrushRun({ ...options, returnInk: true });
   const canvas = $('sampleCanvas');
   const ctx = canvas.getContext('2d');
   const maxW = 720;
@@ -92,22 +98,44 @@ function drawSample() {
   ctx.fillStyle = '#24221f';
   for (let y = 0; y < result.rows; y++) {
     for (let x = 0; x < result.cols; x++) {
-      if (!result.ink[y * result.cols + x]) continue;
+      if (!result.ink?.[y * result.cols + x]) continue;
       ctx.fillRect(x * scale, y * scale, Math.ceil(scale), Math.ceil(scale));
     }
   }
 
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(57,84,132,.78)';
+  ctx.lineWidth = Math.max(2, result.brushRadius * 2 * scale);
+  for (const segment of result.brushSegments) {
+    ctx.beginPath();
+    ctx.moveTo(segment.a.x * scale, segment.a.y * scale);
+    ctx.lineTo(segment.b.x * scale, segment.b.y * scale);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(result.home.x * scale, result.home.y * scale, Math.max(3, 3 * scale), 0, Math.PI * 2);
+  ctx.fillStyle = '#222';
+  ctx.fill();
+
   for (const resource of result.resources) {
     ctx.beginPath();
     ctx.arc(resource.x * scale, resource.y * scale, Math.max(2, resource.radius * scale), 0, Math.PI * 2);
-    ctx.fillStyle = resource.hit ? 'rgba(194,77,47,.92)' : 'rgba(56,120,100,.82)';
+    if (resource.activated) {
+      ctx.fillStyle = resource.discoveredByBrush ? 'rgba(129,72,155,.95)' : 'rgba(194,77,47,.92)';
+    } else if (resource.splashHit) {
+      ctx.fillStyle = 'rgba(225,157,55,.92)';
+    } else {
+      ctx.fillStyle = 'rgba(56,120,100,.72)';
+    }
     ctx.fill();
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(35,32,28,.7)';
     ctx.stroke();
   }
 
-  $('status').textContent = `1ラン: 面積 ${pct(result.coverage)} / 資源 ${result.hitCount}/${result.resourceCount} (${pct(result.hitRate)}) / 半径倍率 ${result.resourceScale.toFixed(2)}×`;
+  $('status').textContent = `1ラン: スプラッシュ発見 ${result.splashFound} / 筆で新発見 ${result.brushDiscoveries} / 最終発見 ${result.finalFound} / 有効化 ${result.activatedCount} / 筆 ${result.brushUsed.toFixed(0)}/${result.brushBudget}`;
 }
 
 $('compareBtn').addEventListener('click', () => run('compare'));
