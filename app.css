@@ -8,7 +8,7 @@
   --line: rgba(47, 43, 35, .18);
   --accent: #315f55;
   --position: #60777c;
-  --revealed: #bd6428;
+  --revealed: #60777c;
   --acquired: #9b6811;
 }
 
@@ -194,7 +194,7 @@ button { font: inherit; }
 .actions {
   padding: 5px 8px max(6px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1.2fr 1fr .8fr auto;
   gap: 6px;
   background: var(--panel);
   border-top: 1px solid var(--line);
@@ -207,12 +207,12 @@ button { font: inherit; }
   color: #2d2b27;
   min-height: 42px;
 }
-.action { display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 700; }
+.action { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 0 5px; font-weight: 700; }
 .action-icon { font-size: 19px; }
-.action-cost { margin-left: 3px; font-size: 9px; font-weight: 600; opacity: .62; }
+.action-cost { margin-left: 2px; font-size: 8px; font-weight: 600; opacity: .62; white-space: nowrap; }
 .action.active { background: var(--accent); color: white; border-color: var(--accent); }
 .action:disabled { opacity: .38; }
-.subaction { padding: 0 9px; font-size: 11px; color: #555047; }
+.subaction { padding: 0 8px; font-size: 10px; color: #555047; }
 
 .result {
   position: fixed;
