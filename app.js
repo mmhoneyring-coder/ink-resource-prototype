@@ -68,9 +68,9 @@
     partialTreasure: '#60777c',
     revealed: '#60777c',
     revealedDark: '#344c51',
-    revealedText: '#fffaf0',
+    revealedText: '#e8eceb',
     acquired: '#f0c64f',
-    acquiredDark: '#79500f',
+    acquiredDark: '#303638',
     coin: '#f0c64f',
     treasure: '#f2bf3f',
   };
@@ -699,25 +699,27 @@
     ctx.setLineDash([]);
   }
 
-  function renderCoinHalo(resource, m, strength = 'weak') {
+  function renderCoinHalo(resource, m, strength = 'strong') {
     const x = (resource.x + .5) * m.sx;
     const y = (resource.y + .5) * m.sy;
     const radius = resource.radius * m.sx;
-    const halo = strength === 'strong'
-      ? { line: .34, shadow: .80, blur: 17, width: 4.5 }
-      : strength === 'medium'
-        ? { line: .20, shadow: .50, blur: 13, width: 3.5 }
-        : { line: .11, shadow: .30, blur: 10, width: 2.5 };
+    const spread = (strength === 'strong' ? 16 : 11) / camera.zoom;
+    const inner = Math.max(0, radius - 7 / camera.zoom);
+    const outer = radius + spread;
+    const peak = strength === 'strong' ? .42 : .28;
 
     ctx.save();
     ctx.translate(x, y);
-    ctx.strokeStyle = `rgba(255,255,255,${halo.line})`;
-    ctx.lineWidth = halo.width / camera.zoom;
-    ctx.shadowColor = `rgba(255,255,255,${halo.shadow})`;
-    ctx.shadowBlur = halo.blur / camera.zoom;
+    const glow = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
+    glow.addColorStop(0, 'rgba(255,255,255,0)');
+    glow.addColorStop(.34, `rgba(255,255,255,${peak * .38})`);
+    glow.addColorStop(.55, `rgba(255,255,255,${peak})`);
+    glow.addColorStop(.72, `rgba(255,255,255,${peak * .58})`);
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(0, 0, radius + 1 / camera.zoom, 0, TAU);
-    ctx.stroke();
+    ctx.arc(0, 0, outer, 0, TAU);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -729,8 +731,6 @@
     const dx = Math.sin((resource.id + 1) * 2.17) * drift;
     const dy = Math.cos((resource.id + 1) * 1.63) * drift * .65;
     const haloR = 19 / camera.zoom;
-
-    renderCoinHalo(resource, m, 'weak');
 
     ctx.save();
     ctx.translate(x + dx, y + dy);
@@ -793,13 +793,7 @@
       return;
     }
 
-    if (resource.initiallyKnown) {
-      renderCoinHalo(
-        resource,
-        m,
-        resource.coverage >= CONFIG.acquireCoverage ? 'strong' : 'medium'
-      );
-    } else if (resource.coverage >= CONFIG.acquireCoverage) {
+    if (resource.coverage >= CONFIG.acquireCoverage) {
       renderCoinHalo(resource, m, 'strong');
     }
 
@@ -822,16 +816,26 @@
     }
 
     if (resource.scoreKnown) {
+      const text = String(resource.value);
+      const textY = .5 / camera.zoom;
+      const lift = .8 / camera.zoom;
       ctx.save();
       ctx.translate(x,y);
-      ctx.fillStyle = COLORS.revealedText;
-      ctx.strokeStyle = COLORS.revealedDark;
-      ctx.lineWidth = 3 / camera.zoom;
       ctx.font = `850 ${clamp(radius * .56, 11 / camera.zoom, 20 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.strokeText(String(resource.value),0,.5 / camera.zoom);
-      ctx.fillText(String(resource.value),0,.5 / camera.zoom);
+
+      ctx.globalAlpha = .34;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, 0, textY - lift);
+
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = 'rgba(18,31,34,.55)';
+      ctx.shadowBlur = 2.2 / camera.zoom;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 2 / camera.zoom;
+      ctx.fillStyle = COLORS.revealedText;
+      ctx.fillText(text, 0, textY);
       ctx.restore();
     }
   }
@@ -971,7 +975,7 @@
         <strong>特別埋蔵</strong>
         <span>50×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。青灰はインクが当たった部分、白い数字は点数判明、白いハローは取得に近い状態、金は取得済み。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。青灰はインクが当たった部分、30%で浮き出す数字、70%まで露出すると白いハロー、金は取得済み。</p>`;
   }
 
   function reset(useSameSeed) {
