@@ -22,9 +22,9 @@ function readOptions() {
     rows: Math.max(60, Number($('rows').value || 420)),
     resources: {
       count: Math.max(1, Number($('resourceCount').value || 40)),
-      baseRadius: Math.max(.5, Number($('resourceRadius').value || 3)),
+      baseRadius: 3,
       countMode: $('resourceCountMode').value,
-      scaleMode: $('resourceScaleMode').value,
+      scaleMode: 'auto',
     },
     brush: {
       budget: Math.max(0, Number($('brushBudget').value || 480)),
@@ -55,6 +55,8 @@ function renderResults(rows) {
       <td>${r.p90Score.toFixed(0)}</td>
       <td>${pct(r.goalRate)}</td>
       <td>${pct(r.treasureRate)}</td>
+      <td>${pct(r.treasureSplashRate)}</td>
+      <td>${pct(r.treasureBrushRate)}</td>
       <td>${r.meanBrushUsed.toFixed(0)} / ${r.brushBudget.toFixed(0)}</td>
     </tr>`).join('');
 }
@@ -74,7 +76,7 @@ async function run(kind) {
     else if (kind === 'compareStrategies') rows = compareBrushStrategies(options);
     else rows = [runBrushBatch(options)];
     renderResults(rows);
-    $('status').textContent = `${options.trials}試行 × ${options.splashes}スプラッシュ / 資源${options.resources.count} / 筆予算${options.brush.budget}`;
+    $('status').textContent = `${options.trials}試行 × ${options.splashes}スプラッシュ / 通常資源${options.resources.count}+お宝1 / 筆予算${options.brush.budget}`;
   } catch (error) {
     console.error(error);
     $('status').textContent = `エラー: ${error.message}`;
@@ -172,7 +174,7 @@ function drawSample() {
   const names = ['上層', '中層', '下層'];
   $('distribution').innerHTML = result.distribution.map((text, i) =>
     `<div><strong>${names[i]}</strong><span>${text || 'なし'}</span></div>`
-  ).join('') + `<p>特別埋蔵：50pt×1（今回は${result.treasureBand === 1 ? '中層' : '下層'}）。青枠が見える12ptの擬似ゴール、金枠が50ptお宝。</p>`;
+  ).join('') + `<p>特別埋蔵：通常40枚とは別に50pt×1を追加（今回は${result.treasureBand === 1 ? '中層' : '下層'}）。50ptは専用最小サイズ。</p>`;
 
   $('status').textContent = `1ラン: 有効化 ${result.activatedCount} / 得点 ${result.score} / 隠し発見 splash ${result.splashHiddenDiscoveries} + 筆 ${result.brushDiscoveries} / お宝 ${result.treasureActivated ? '取得' : '未取得'}`;
 }
