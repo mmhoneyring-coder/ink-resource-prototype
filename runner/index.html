@@ -11,7 +11,7 @@
     <header>
       <div>
         <h1>Ink Resource Balance Runner</h1>
-        <p>現在のスプラッシュ形状を使って、盤面サイズと探索率を大量試行する独立ランナー。</p>
+        <p>現在のスプラッシュ形状を使って、盤面サイズ・資源数・資源サイズと命中率を大量試行する独立ランナー。</p>
       </div>
       <a href="../">ゲームへ</a>
     </header>
@@ -30,6 +30,20 @@
           <option value="random">ランダム</option>
         </select>
       </label>
+      <label>基準資源数<input id="resourceCount" type="number" min="1" max="500" value="30"></label>
+      <label>基準判定半径<input id="resourceRadius" type="number" min="0.5" max="20" step="0.5" value="3"></label>
+      <label>資源数
+        <select id="resourceCountMode">
+          <option value="fixed">全盤面で同じ個数</option>
+          <option value="density">面積比例で増やす</option>
+        </select>
+      </label>
+      <label>資源サイズ
+        <select id="resourceScaleMode">
+          <option value="auto">盤面に合わせ緩く拡大</option>
+          <option value="fixed">全盤面で同じ</option>
+        </select>
+      </label>
       <button id="compareBtn" class="primary">4サイズ比較</button>
       <button id="singleBtn">現在サイズだけ</button>
     </section>
@@ -45,19 +59,19 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>盤面</th><th>全体</th><th>P10</th><th>P50</th><th>P90</th><th>上層</th><th>中層</th><th>下層</th><th>平均セル</th></tr>
+            <tr><th>盤面</th><th>資源数</th><th>サイズ倍率</th><th>平均半径</th><th>面積探索</th><th>資源命中率</th><th>平均命中数</th><th>命中P10</th><th>P50</th><th>P90</th><th>上層命中</th><th>中層命中</th><th>下層命中</th></tr>
           </thead>
           <tbody id="results"></tbody>
         </table>
       </div>
-      <p class="note">探索率＝インクが一度でも乗ったセル割合。資源が一様配置なら、隠し資源への平均命中率の目安になる。</p>
+      <p class="note">資源は円形の当たり判定として配置し、サイズは各個体で±25%変動。自動拡大は180×280を1.00×として、220×360≈1.16×、240×420≈1.25×、260×450≈1.31×。命中＝円のどこか1セルにインクが触れた状態。</p>
     </section>
 
     <section class="card sample">
       <div class="sample-head">
         <div>
           <h2>1ラン例</h2>
-          <p>選択中の幅・高さ・戦略で1回だけ描画。</p>
+          <p>選択中の幅・高さ・戦略で1回だけ描画。緑＝未命中、赤＝命中。</p>
         </div>
         <button id="sampleBtn">描画更新</button>
       </div>
@@ -66,7 +80,7 @@
 
     <section class="card scope">
       <h2>この版で見るもの</h2>
-      <p><strong>現在は探索率専用。</strong> 点数分布・見える/得点不明/完全隠し・総インク・筆接続は、仕様確定後に同じランナーへ追加する。</p>
+      <p><strong>探索密度と資源命中まで。</strong> 同じ資源数／同じ密度、資源サイズ固定／緩い拡大を切り替えて、盤面拡大で「全部を広く探索できすぎる」状態がどこまで弱まるかを見る。点数分布・情報状態・総インク・筆接続はまだ未実装。</p>
     </section>
   </main>
   <script type="module" src="./ui.mjs"></script>
