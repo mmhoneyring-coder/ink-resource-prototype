@@ -1,11 +1,15 @@
 (() => {
   'use strict';
 
+  // Play-test values. Keep the splash feel stable while the board/resource balance is provisional.
   const CONFIG = {
-    turns: 24,
-    cols: 180,
-    rows: 280,
+    cols: 260,
+    rows: 450,
+    totalInk: 100,
+    splashInkCost: 8,
+    brushInkPerCell: 0.075, // 36 ink ≒ 480 cells after 8 splashes.
     homeRadius: 10,
+    homeY: 0.78,
     brushRadius: 2,
     brushMaxLength: 56,
     brushStartPadding: 6,
@@ -29,18 +33,40 @@
       minIslandArea: 24,
     },
     resources: {
-      visible: 7,
-      hidden: 15,
-      minHomeDistance: 36,
+      minHomeDistance: 22,
+      minGap: 3,
+      visiblePerBand: 1,
+      knownPerBand: 1,
+      treasureValue: 50,
+      treasureRadius: 1.8,
+      decks: {
+        upper: [14, 14, 16, 16, 20, 20, 20, 24, 24, 24, 28, 28, 30, 30],
+        middle: [6, 6, 8, 8, 10, 10, 12, 12, 12, 14, 14, 16, 16],
+        lower: [2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 8],
+      },
+      sizeBands: [
+        { max: 3, radius: 5.0 },
+        { max: 6, radius: 4.3 },
+        { max: 10, radius: 3.7 },
+        { max: 16, radius: 3.1 },
+        { max: Infinity, radius: 2.6 },
+      ],
     },
   };
+
+  const BAND_NAMES = ['upper', 'middle', 'lower'];
+  const BAND_LABELS = ['上層', '中層', '下層'];
+  const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
+  const TAU = Math.PI * 2;
+  const TAP_MOVE_PX = 5;
+  const MIN_ACTION_INK = .05;
 
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('boardWrap');
   const scoreEl = document.getElementById('score');
-  const turnsEl = document.getElementById('turns');
-  const foundEl = document.getElementById('found');
+  const inkEl = document.getElementById('inkRemaining');
+  const ownedEl = document.getElementById('ownedCount');
   const hintEl = document.getElementById('hint');
   const splashBtn = document.getElementById('splashBtn');
   const brushBtn = document.getElementById('brushBtn');
@@ -48,14 +74,15 @@
   const zoomInBtn = document.getElementById('zoomIn');
   const zoomOutBtn = document.getElementById('zoomOut');
   const zoomResetBtn = document.getElementById('zoomReset');
+  const distributionBtn = document.getElementById('distributionBtn');
+  const distributionPanel = document.getElementById('distributionPanel');
+  const distributionContent = document.getElementById('distributionContent');
+  const distributionClose = document.getElementById('distributionClose');
   const result = document.getElementById('result');
   const finalScore = document.getElementById('finalScore');
+  const finalOwned = document.getElementById('finalOwned');
   const retryBtn = document.getElementById('retryBtn');
   const nextBtn = document.getElementById('nextBtn');
-
-  const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
-  const TAU = Math.PI * 2;
-  const TAP_MOVE_PX = 5;
 
   let mode = 'splash';
   let seed = randomSeed();
@@ -64,7 +91,7 @@
   let connected = new Set();
   let resources = [];
   let score = 0;
-  let turns = CONFIG.turns;
+  let inkRemaining = CONFIG.totalInk;
   let drawing = null;
   let gameOver = false;
   let pendingSplash = null;
@@ -92,12 +119,29 @@
   function key(x, y) { return `${x},${y}`; }
   function parseKey(k) { const [x,y] = k.split(',').map(Number); return {x,y}; }
 
+  function shuffled(items) {
+    const out = [...items];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = randInt(0, i);
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+
   function home() {
-    return { x: Math.floor(CONFIG.cols / 2), y: CONFIG.rows - 20 };
+    return {
+      x: Math.floor(CONFIG.cols / 2),
+      y: Math.floor(CONFIG.rows * CONFIG.homeY),
+    };
   }
 
   function inBounds(x, y) {
     return x >= 0 && x < CONFIG.cols && y >= 0 && y < CONFIG.rows;
+  }
+
+  function radiusForValue(value, isTreasure = false) {
+    if (isTreasure) return CONFIG.resources.treasureRadius;
+    return CONFIG.resources.sizeBands.find(item => value <= item.max)?.radius ?? 2.6;
   }
 
   function addDisk(cx, cy, radius, target = ink) {
@@ -164,14 +208,20 @@
   }
 
   function splashAt(cx, cy) {
+    if (gameOver) return;
+    if (inkRemaining + 1e-9 < CONFIG.splashInkCost) {
+      hintEl.textContent = 'スプラッシュ分のインクがないので、筆で使い切る';
+      setMode('brush');
+      return;
+    }
+
     const splashInk = new Set();
     const core = randInt(...CONFIG.splash.coreCount);
     const droplets = randInt(...CONFIG.splash.dropletCount);
     const specks = randInt(...CONFIG.splash.speckCount);
     const impact = splashPoint(cx, cy, ...CONFIG.splash.aimDrift);
 
-    // The tap is an aim point, not a guaranteed hit point. The actual splash
-    // drifts before its islands are generated, so even a visible resource can miss.
+    // The tap is only an aim point. Preserve the current deliberately imprecise splash feel.
     for (let i = 0; i < core; i++) {
       const p = splashPoint(
         impact.x,
@@ -193,50 +243,113 @@
     pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
     for (const k of splashInk) ink.add(k);
 
-    revealResources();
+    updateResourceContacts();
     refreshConnected();
-    spendTurn();
+    spendInk(CONFIG.splashInkCost);
   }
 
-  function valueRoll(hidden) {
-    const r = rng();
-    if (hidden && r < .035) return 50;
-    if (hidden && r < .12) return 25;
-    if (r < .28) return 12;
-    if (r < .58) return 7;
-    return randInt(1, 5);
+  function placeResource(list, band, value, id, isTreasure = false) {
+    const radius = radiusForValue(value, isTreasure);
+    const bandLo = band / 3 * CONFIG.rows;
+    const bandHi = (band + 1) / 3 * CONFIG.rows;
+    const margin = Math.ceil(radius + 4);
+    const h = home();
+    let x = CONFIG.cols / 2;
+    let y = (bandLo + bandHi) / 2;
+
+    for (let tries = 0; tries < 260; tries++) {
+      x = rand(margin, CONFIG.cols - margin);
+      y = rand(bandLo + margin, bandHi - margin);
+      const tooCloseHome = Math.hypot(x - h.x, y - h.y) < CONFIG.resources.minHomeDistance + radius;
+      const overlaps = list.some(r =>
+        Math.hypot(x - r.x, y - r.y) < radius + r.radius + CONFIG.resources.minGap
+      );
+      if (!tooCloseHome && !overlaps) break;
+    }
+
+    return {
+      id,
+      x,
+      y,
+      band,
+      value,
+      radius,
+      visibility: 'hidden',
+      positionKnown: false,
+      valueKnown: false,
+      contacted: false,
+      owned: false,
+      isTreasure,
+    };
   }
 
   function createResources() {
     const list = [];
-    const h = home();
-    const total = CONFIG.resources.visible + CONFIG.resources.hidden;
-    for (let i = 0; i < total; i++) {
-      let x, y, tries = 0;
-      do {
-        x = randInt(10, CONFIG.cols - 12);
-        y = randInt(12, CONFIG.rows - 36);
-        tries++;
-      } while (tries < 200 && (
-        Math.hypot(x - h.x, y - h.y) < CONFIG.resources.minHomeDistance ||
-        list.some(r => Math.hypot(x - r.x, y - r.y) < 14)
-      ));
-      const hidden = i >= CONFIG.resources.visible;
-      list.push({
-        id: i,
-        x, y,
-        hidden,
-        revealed: !hidden,
-        owned: false,
-        value: valueRoll(hidden),
-      });
+    let id = 0;
+
+    for (let band = 0; band < 3; band++) {
+      const name = BAND_NAMES[band];
+      const values = shuffled(CONFIG.resources.decks[name]);
+      const bandResources = [];
+      for (const value of values) {
+        const resource = placeResource(list, band, value, id++);
+        list.push(resource);
+        bandResources.push(resource);
+      }
+
+      const infoOrder = shuffled(bandResources);
+      for (let i = 0; i < Math.min(CONFIG.resources.visiblePerBand, infoOrder.length); i++) {
+        infoOrder[i].visibility = 'visible';
+        infoOrder[i].positionKnown = true;
+        infoOrder[i].valueKnown = true;
+      }
+      for (
+        let i = CONFIG.resources.visiblePerBand;
+        i < Math.min(CONFIG.resources.visiblePerBand + CONFIG.resources.knownPerBand, infoOrder.length);
+        i++
+      ) {
+        infoOrder[i].visibility = 'known';
+        infoOrder[i].positionKnown = true;
+        infoOrder[i].valueKnown = false;
+      }
     }
+
+    const treasureBand = rng() < .5 ? 1 : 2;
+    const treasure = placeResource(
+      list,
+      treasureBand,
+      CONFIG.resources.treasureValue,
+      id++,
+      true
+    );
+    list.push(treasure);
     return list;
   }
 
-  function revealResources() {
+  function resourceTouchesSet(resource, cells) {
+    const r2 = resource.radius * resource.radius;
+    const minX = Math.max(0, Math.floor(resource.x - resource.radius));
+    const maxX = Math.min(CONFIG.cols - 1, Math.ceil(resource.x + resource.radius));
+    const minY = Math.max(0, Math.floor(resource.y - resource.radius));
+    const maxY = Math.min(CONFIG.rows - 1, Math.ceil(resource.y + resource.radius));
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const dx = x - resource.x;
+        const dy = y - resource.y;
+        if (dx * dx + dy * dy > r2) continue;
+        if (cells.has(key(x, y))) return true;
+      }
+    }
+    return false;
+  }
+
+  function updateResourceContacts() {
     for (const resource of resources) {
-      if (!resource.revealed && ink.has(key(resource.x, resource.y))) resource.revealed = true;
+      if (!resourceTouchesSet(resource, ink)) continue;
+      resource.contacted = true;
+      resource.positionKnown = true;
+      resource.valueKnown = true;
     }
   }
 
@@ -265,7 +378,9 @@
 
   function canStartBrush(p) {
     const h = home();
-    if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + CONFIG.brushRadius + CONFIG.brushStartPadding) return true;
+    if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + CONFIG.brushRadius + CONFIG.brushStartPadding) {
+      return true;
+    }
     for (let yy = p.y - CONFIG.brushStartPadding; yy <= p.y + CONFIG.brushStartPadding; yy++) {
       for (let xx = p.x - CONFIG.brushStartPadding; xx <= p.x + CONFIG.brushStartPadding; xx++) {
         if (connected.has(key(xx,yy))) return true;
@@ -290,8 +405,10 @@
     const stepDist = Math.hypot(to.x - from.x, to.y - from.y);
     if (stepDist < .5) return;
 
-    const allowed = CONFIG.brushMaxLength - drawing.length;
+    const maxByInk = inkRemaining / CONFIG.brushInkPerCell;
+    const allowed = Math.min(CONFIG.brushMaxLength, maxByInk) - drawing.length;
     if (allowed <= 0) return;
+
     const use = Math.min(stepDist, allowed);
     const ux = (to.x - from.x) / stepDist;
     const uy = (to.y - from.y) / stepDist;
@@ -306,56 +423,81 @@
     }
     drawing.length += use;
     drawing.last = end;
+    updateHud();
   }
 
   function finishBrush() {
     if (!drawing) return;
-    if (drawing.length >= 1) {
+    if (drawing.length >= .5) {
+      const cost = Math.min(inkRemaining, drawing.length * CONFIG.brushInkPerCell);
       for (const k of drawing.cells) ink.add(k);
-      revealResources();
+      updateResourceContacts();
       refreshConnected();
       acquireByBrush();
-      spendTurn();
+      drawing = null;
+      spendInk(cost);
+      return;
     }
     drawing = null;
+    updateHud();
     render();
   }
 
   function acquireByBrush() {
     for (const resource of resources) {
-      if (resource.owned || !resource.revealed) continue;
-      const rk = key(resource.x, resource.y);
-      if (!ink.has(rk) || !connected.has(rk)) continue;
+      if (resource.owned) continue;
+      if (!resourceTouchesSet(resource, connected)) continue;
       resource.owned = true;
+      resource.contacted = true;
+      resource.positionKnown = true;
+      resource.valueKnown = true;
       score += resource.value;
     }
   }
 
-  function spendTurn() {
+  function projectedInk() {
+    const previewCost = drawing ? drawing.length * CONFIG.brushInkPerCell : 0;
+    return Math.max(0, inkRemaining - previewCost);
+  }
+
+  function spendInk(amount) {
     if (gameOver) return;
-    turns--;
-    if (turns <= 0) {
-      turns = 0;
+    inkRemaining = Math.max(0, inkRemaining - amount);
+    if (inkRemaining < MIN_ACTION_INK) inkRemaining = 0;
+
+    if (inkRemaining <= 0) {
       gameOver = true;
-      setTimeout(showResult, 260);
+      updateHud();
+      render();
+      setTimeout(showResult, 220);
+      return;
     }
+
     updateHud();
+    updateActionAvailability();
     render();
   }
 
   function showResult() {
     finalScore.textContent = score;
+    finalOwned.textContent = resources.filter(r => r.owned).length;
     result.hidden = false;
   }
 
   function setMode(next) {
     if (gameOver) return;
-    mode = next;
+    if (next === 'splash' && inkRemaining + 1e-9 < CONFIG.splashInkCost) {
+      mode = 'brush';
+      hintEl.textContent = 'スプラッシュ分のインクがないので、筆で使い切る';
+    } else {
+      mode = next;
+      hintEl.textContent = mode === 'splash'
+        ? `狙いにはブレあり・1回 ${CONFIG.splashInkCost}インク・2本指で縮小/移動`
+        : '筆は引いた長さぶんインク消費・2本指で縮小/移動';
+    }
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
-    hintEl.textContent = mode === 'splash'
-      ? '狙いにはブレあり・2本指で縮小/移動'
-      : `線を引く（最大 ${CONFIG.brushMaxLength}）・2本指で縮小/移動`;
+    updateActionAvailability();
   }
 
   function resizeCanvas() {
@@ -433,6 +575,83 @@
     };
   }
 
+  function renderBands(m) {
+    const bandHeight = m.worldH / 3;
+    const fills = ['#f2ead9', '#f7f0e1', '#fbf4e6'];
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = fills[i];
+      ctx.fillRect(0, i * bandHeight, m.worldW, bandHeight);
+    }
+
+    ctx.strokeStyle = 'rgba(78,68,51,.20)';
+    ctx.lineWidth = 1 / camera.zoom;
+    ctx.setLineDash([5 / camera.zoom, 5 / camera.zoom]);
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(0, i * bandHeight);
+      ctx.lineTo(m.worldW, i * bandHeight);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(69,61,49,.48)';
+    ctx.font = `700 ${11 / camera.zoom}px system-ui`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillText(BAND_LABELS[i], 8 / camera.zoom, i * bandHeight + 8 / camera.zoom);
+    }
+  }
+
+  function renderResource(resource, m) {
+    if (!resource.positionKnown) return;
+
+    const x = (resource.x + .5) * m.sx;
+    const y = (resource.y + .5) * m.sy;
+    const worldScale = Math.min(m.sx, m.sy);
+    const minWorldRadius = 4 / camera.zoom;
+    const radius = Math.max(minWorldRadius, resource.radius * worldScale);
+
+    ctx.save();
+    ctx.translate(x,y);
+
+    if (resource.owned) {
+      ctx.fillStyle = '#fff0a8';
+      ctx.strokeStyle = '#806813';
+    } else if (resource.contacted) {
+      ctx.fillStyle = '#ffe2b9';
+      ctx.strokeStyle = '#a8611c';
+    } else if (resource.valueKnown) {
+      ctx.fillStyle = '#fffdf7';
+      ctx.strokeStyle = '#4b463d';
+    } else {
+      ctx.fillStyle = '#e7e4dc';
+      ctx.strokeStyle = '#716d64';
+    }
+
+    ctx.lineWidth = (resource.owned ? 2.4 : resource.contacted ? 2 : 1.4) / camera.zoom;
+    ctx.beginPath();
+    ctx.arc(0,0,radius,0,TAU);
+    ctx.fill();
+    ctx.stroke();
+
+    if (resource.isTreasure && resource.valueKnown) {
+      ctx.strokeStyle = '#9d7718';
+      ctx.lineWidth = 1.3 / camera.zoom;
+      ctx.beginPath();
+      ctx.arc(0,0,radius + 2.2 / camera.zoom,0,TAU);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = resource.owned ? '#66520d' : '#282622';
+    const fontSize = clamp(radius * .95, 8 / camera.zoom, 12 / camera.zoom);
+    ctx.font = `700 ${fontSize}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(resource.valueKnown ? String(resource.value) : '?', 0, .4 / camera.zoom);
+    ctx.restore();
+  }
+
   function render() {
     const m = boardMetrics();
     ctx.clearRect(0,0,m.w,m.h);
@@ -444,8 +663,7 @@
     ctx.translate(camera.tx, camera.ty);
     ctx.scale(camera.zoom, camera.zoom);
 
-    ctx.fillStyle = '#f5efdf';
-    ctx.fillRect(0,0,m.worldW,m.worldH);
+    renderBands(m);
 
     for (const k of ink) {
       const p = parseKey(k);
@@ -470,46 +688,66 @@
     ctx.strokeStyle = '#232220';
     ctx.lineWidth = 2 / camera.zoom;
     ctx.beginPath();
-    ctx.arc(0,0, Math.max(14, CONFIG.homeRadius*m.sx), 0, TAU);
+    ctx.arc(0,0, Math.max(14 / camera.zoom, CONFIG.homeRadius*Math.min(m.sx,m.sy)), 0, TAU);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#232220';
-    ctx.font = '700 11px system-ui';
+    ctx.font = `700 ${11 / camera.zoom}px system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('START',0,0);
     ctx.restore();
 
-    for (const resource of resources) {
-      if (!resource.revealed) continue;
-      const x = (resource.x + .5) * m.sx;
-      const y = (resource.y + .5) * m.sy;
-      const owned = resource.owned;
-      ctx.save();
-      ctx.translate(x,y);
-      ctx.fillStyle = owned ? '#fff7cf' : '#fffdf7';
-      ctx.strokeStyle = owned ? '#846d12' : '#4b463d';
-      ctx.lineWidth = (owned ? 2.5 : 1.5) / camera.zoom;
-      ctx.beginPath();
-      ctx.arc(0,0, owned ? 12 : 10, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = owned ? '#66520d' : '#282622';
-      ctx.font = `700 ${owned ? 11 : 10}px system-ui`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(resource.value),0,.5);
-      ctx.restore();
-    }
+    for (const resource of resources) renderResource(resource, m);
 
     ctx.restore();
   }
 
+  function formatInk(value) {
+    const rounded = Math.max(0, value);
+    return rounded >= 10 ? rounded.toFixed(1).replace(/\.0$/, '') : rounded.toFixed(1);
+  }
+
+  function updateActionAvailability() {
+    splashBtn.disabled = gameOver || inkRemaining + 1e-9 < CONFIG.splashInkCost;
+    brushBtn.disabled = gameOver || inkRemaining <= 0;
+    if (splashBtn.disabled && mode === 'splash' && !gameOver) {
+      mode = 'brush';
+      splashBtn.classList.remove('active');
+      brushBtn.classList.add('active');
+    }
+  }
+
   function updateHud() {
     scoreEl.textContent = score;
-    turnsEl.textContent = turns;
-    const revealed = resources.filter(r => r.revealed).length;
-    foundEl.textContent = `${revealed}/${resources.length}`;
+    inkEl.textContent = formatInk(projectedInk());
+    ownedEl.textContent = resources.filter(r => r.owned).length;
+    updateActionAvailability();
+  }
+
+  function deckSummary(values) {
+    const counts = new Map();
+    for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+    return [...counts.entries()].sort((a,b) => a[0] - b[0])
+      .map(([value,count]) => `${value}×${count}`)
+      .join(' / ');
+  }
+
+  function renderDistributionPanel() {
+    distributionContent.innerHTML = BAND_NAMES.map((name, i) => {
+      const deck = CONFIG.resources.decks[name];
+      const total = deck.reduce((sum, value) => sum + value, 0);
+      const avg = total / deck.length;
+      return `<div class="distribution-row">
+        <strong>${BAND_LABELS[i]} <small>${deck.length}個 / 平均${avg.toFixed(1)}</small></strong>
+        <span>${deckSummary(deck)}</span>
+      </div>`;
+    }).join('') + `
+      <div class="distribution-row treasure-row">
+        <strong>特別埋蔵</strong>
+        <span>50×1（通常40個とは別枠。下層か中層のどちらか・場所は非公開）</span>
+      </div>
+      <p class="distribution-note">各層は最初から「得点まで公開1個＋位置だけ公開1個」。それ以外はインクが触れるまで見えない。</p>`;
   }
 
   function reset(useSameSeed) {
@@ -519,16 +757,18 @@
     connected = new Set();
     resources = createResources();
     score = 0;
-    turns = CONFIG.turns;
+    inkRemaining = CONFIG.totalInk;
     drawing = null;
     pendingSplash = null;
     gesture = null;
     pointers.clear();
     gameOver = false;
     result.hidden = true;
+    distributionPanel.hidden = true;
 
     const h = home();
     addDisk(h.x, h.y, CONFIG.homeRadius);
+    updateResourceContacts();
     refreshConnected();
     updateHud();
     resetCamera();
@@ -552,11 +792,12 @@
       wx: (mx - camera.tx) / camera.zoom,
       wy: (my - camera.ty) / camera.zoom,
     };
+    updateHud();
     render();
   }
 
   canvas.addEventListener('pointerdown', event => {
-    if (gameOver) return;
+    if (gameOver || !distributionPanel.hidden) return;
     canvas.setPointerCapture(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -576,11 +817,12 @@
       return;
     }
     if (!canStartBrush(p)) {
-      hintEl.textContent = '筆は本拠地か、つながっているインクから開始';
+      hintEl.textContent = '筆はSTARTか、つながっているインクから開始';
       return;
     }
     drawing = { pointerId: event.pointerId, last: p, length: 0, cells: new Set() };
     stampBrush(p, drawing.cells);
+    updateHud();
     render();
   });
 
@@ -642,6 +884,7 @@
     pendingSplash = null;
     if (drawing && drawing.pointerId === event.pointerId) drawing = null;
     if (pointers.size < 2) gesture = null;
+    updateHud();
     render();
   });
 
@@ -653,8 +896,15 @@
   zoomInBtn.addEventListener('click', () => zoomTo(camera.zoom + CONFIG.zoom.step));
   zoomOutBtn.addEventListener('click', () => zoomTo(camera.zoom - CONFIG.zoom.step));
   zoomResetBtn.addEventListener('click', resetCamera);
+  distributionBtn.addEventListener('click', () => {
+    distributionPanel.hidden = !distributionPanel.hidden;
+  });
+  distributionClose.addEventListener('click', () => {
+    distributionPanel.hidden = true;
+  });
   window.addEventListener('resize', resizeCanvas);
 
+  renderDistributionPanel();
   requestAnimationFrame(() => {
     resizeCanvas();
     reset(true);
