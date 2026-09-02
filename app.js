@@ -699,6 +699,28 @@
     ctx.setLineDash([]);
   }
 
+  function renderCoinHalo(resource, m, strength = 'weak') {
+    const x = (resource.x + .5) * m.sx;
+    const y = (resource.y + .5) * m.sy;
+    const radius = resource.radius * m.sx;
+    const halo = strength === 'strong'
+      ? { line: .34, shadow: .80, blur: 17, width: 4.5 }
+      : strength === 'medium'
+        ? { line: .20, shadow: .50, blur: 13, width: 3.5 }
+        : { line: .11, shadow: .30, blur: 10, width: 2.5 };
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = `rgba(255,255,255,${halo.line})`;
+    ctx.lineWidth = halo.width / camera.zoom;
+    ctx.shadowColor = `rgba(255,255,255,${halo.shadow})`;
+    ctx.shadowBlur = halo.blur / camera.zoom;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + 1 / camera.zoom, 0, TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function renderPositionMarker(resource, m) {
     if (!resource.initiallyKnown || resource.coverage > 0 || resource.owned) return;
     const x = (resource.x + .5) * m.sx;
@@ -707,6 +729,8 @@
     const dx = Math.sin((resource.id + 1) * 2.17) * drift;
     const dy = Math.cos((resource.id + 1) * 1.63) * drift * .65;
     const haloR = 19 / camera.zoom;
+
+    renderCoinHalo(resource, m, 'weak');
 
     ctx.save();
     ctx.translate(x + dx, y + dy);
@@ -738,15 +762,13 @@
     const radius = resource.radius * m.sx;
 
     if (resource.owned) {
+      renderCoinHalo(resource, m, 'strong');
       ctx.save();
       ctx.translate(x,y);
       ctx.fillStyle = resource.isTreasure ? COLORS.treasure : COLORS.coin;
-      ctx.strokeStyle = COLORS.acquiredDark;
-      ctx.lineWidth = 3.5 / camera.zoom;
       ctx.beginPath();
       ctx.arc(0,0,radius,0,TAU);
       ctx.fill();
-      ctx.stroke();
 
       ctx.fillStyle = COLORS.acquiredDark;
       ctx.font = `850 ${clamp(radius * .65, 11 / camera.zoom, 22 / camera.zoom)}px system-ui`;
@@ -769,6 +791,16 @@
     if (resource.coverage <= 0) {
       renderPositionMarker(resource, m);
       return;
+    }
+
+    if (resource.initiallyKnown) {
+      renderCoinHalo(
+        resource,
+        m,
+        resource.coverage >= CONFIG.acquireCoverage ? 'strong' : 'medium'
+      );
+    } else if (resource.coverage >= CONFIG.acquireCoverage) {
+      renderCoinHalo(resource, m, 'strong');
     }
 
     // Coin surface is visible only where ink has touched it.
@@ -939,7 +971,7 @@
         <strong>特別埋蔵</strong>
         <span>50×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。青灰はインクが当たった部分、白い数字は点数判明、金は取得済み。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。青灰はインクが当たった部分、白い数字は点数判明、白いハローは取得に近い状態、金は取得済み。</p>`;
   }
 
   function reset(useSameSeed) {
