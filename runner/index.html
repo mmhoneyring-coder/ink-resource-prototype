@@ -30,7 +30,7 @@
           <option value="random">ランダム</option>
         </select>
       </label>
-      <label>基準資源数<input id="resourceCount" type="number" min="1" max="500" value="30"></label>
+      <label>基準資源数<input id="resourceCount" type="number" min="1" max="500" value="40"></label>
       <label>基準判定半径<input id="resourceRadius" type="number" min="0.5" max="20" step="0.5" value="3"></label>
       <label>資源数
         <select id="resourceCountMode">
@@ -44,7 +44,7 @@
           <option value="fixed">全盤面で同じ</option>
         </select>
       </label>
-      <label>仮の筆距離予算<input id="brushBudget" type="number" min="0" max="2000" step="10" value="240"></label>
+      <label>仮の筆距離予算<input id="brushBudget" type="number" min="0" max="2000" step="10" value="480"></label>
       <label>筆半径<input id="brushRadius" type="number" min="0.25" max="20" step="0.25" value="2"></label>
       <label>START位置（上から%）<input id="startY" type="number" min="50" max="98" step="1" value="78"></label>
       <button id="compareBtn" class="primary">4サイズ比較</button>
@@ -52,8 +52,8 @@
     </section>
 
     <section class="card custom">
-      <label>幅<input id="cols" type="number" min="80" max="600" value="180"></label>
-      <label>高さ<input id="rows" type="number" min="120" max="900" value="280"></label>
+      <label>幅<input id="cols" type="number" min="80" max="600" value="240"></label>
+      <label>高さ<input id="rows" type="number" min="120" max="900" value="420"></label>
       <div id="status">待機中</div>
     </section>
 
@@ -83,7 +83,7 @@
 
     <section class="card scope">
       <h2>この版で見るもの</h2>
-      <p><strong>スプラッシュだけでなく、筆経路による追加発見と最終有効化数まで。</strong> 目安として最終的に10個前後を有効化できる盤面・資源密度・筆予算を探す。筆のインク換算、点数分布、見える／得点不明／完全隠しの割合はまだ仮置きしていない。</p>
+      <p><strong>スプラッシュだけでなく、筆経路による追加発見と最終有効化数まで。</strong> 現在の第一候補は240×420・資源40個・筆距離予算480。最終有効化は6〜10個程度を目安にし、10個固定にはしない。筆のインク換算、点数分布、見える／得点不明／完全隠しの割合はまだ仮置きしていない。</p>
     </section>
   </main>
   <script type="module" src="./ui.mjs"></script>
