@@ -22,7 +22,10 @@
       max: 1.35,
       step: 0.10,
     },
-    panStep: 0.72,
+    panStep: 0.18,
+    panHoldStep: 0.035,
+    panHoldDelay: 260,
+    panHoldEvery: 55,
     splash: {
       coreCount: [3, 5],
       dropletCount: [10, 16],
@@ -59,6 +62,18 @@
   const TAU = Math.PI * 2;
   const TAP_MOVE_PX = 5;
   const MIN_ACTION_INK = .05;
+  const COLORS = {
+    position: '#527783',
+    positionSoft: 'rgba(82,119,131,.72)',
+    partial: '#d8bd74',
+    partialTreasure: '#e8bd4f',
+    revealed: '#c77912',
+    revealedDark: '#714609',
+    acquired: '#2f7d57',
+    acquiredDark: '#18573a',
+    coin: '#f3dfa0',
+    treasure: '#ffd968',
+  };
 
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
@@ -99,6 +114,10 @@
   let gameOver = false;
   let pendingSplash = null;
   let gesture = null;
+  let feedback = null;
+  let feedbackTimer = null;
+  let panDelayTimer = null;
+  let panRepeatTimer = null;
 
   const pointers = new Map();
   const camera = { zoom: CONFIG.zoom.default, tx: 0, ty: 0 };
@@ -354,8 +373,39 @@
     };
   }
 
+  function showFeedback(type, items) {
+    if (!items.length) return;
+    if (feedbackTimer) clearTimeout(feedbackTimer);
+
+    if (type === 'acquired') {
+      const total = items.reduce((sum, item) => sum + item.value, 0);
+      feedback = {
+        type,
+        title: items.length === 1 ? '取得' : `${items.length}個取得`,
+        detail: `+${total}`,
+      };
+    } else {
+      feedback = {
+        type,
+        title: '点数判明',
+        detail: items.length === 1 ? String(items[0].value) : `${items.length}個`,
+      };
+    }
+
+    feedbackTimer = setTimeout(() => {
+      feedback = null;
+      feedbackTimer = null;
+      render();
+    }, 1350);
+  }
+
   function updateResources() {
+    const revealedNow = [];
+    const acquiredNow = [];
+
     for (const resource of resources) {
+      const wasScoreKnown = resource.scoreKnown;
+      const wasOwned = resource.owned;
       const stats = coverageStats(resource);
       resource.coverage = stats.coverage;
       resource.connectedCoverage = stats.connectedCoverage;
@@ -373,7 +423,13 @@
         resource.scoreKnown = true;
         score += resource.value;
       }
+
+      if (!wasOwned && resource.owned) acquiredNow.push(resource);
+      else if (!wasScoreKnown && resource.scoreKnown) revealedNow.push(resource);
     }
+
+    if (acquiredNow.length) showFeedback('acquired', acquiredNow);
+    else if (revealedNow.length) showFeedback('revealed', revealedNow);
   }
 
   function refreshConnected() {
@@ -505,7 +561,7 @@
 
     hintEl.textContent = mode === 'splash'
       ? `大きいスプラッシュ 残り${CONFIG.maxSplashes - splashesUsed}回・1回${CONFIG.splashInkCost}インク`
-      : `筆はSTART/接続インクから・30%で点数、70%＋接続で取得`;
+      : `筆はSTART/接続インクから・橙=点数判明、緑=取得`;
 
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
@@ -580,11 +636,30 @@
     render();
   }
 
-  function panCamera(direction) {
+  function panCamera(direction, fraction = CONFIG.panStep) {
     const m = boardMetrics();
-    camera.tx -= direction * m.w * CONFIG.panStep;
+    camera.tx -= direction * m.w * fraction;
     clampCamera();
     render();
+  }
+
+  function stopPanHold() {
+    if (panDelayTimer) clearTimeout(panDelayTimer);
+    if (panRepeatTimer) clearInterval(panRepeatTimer);
+    panDelayTimer = null;
+    panRepeatTimer = null;
+  }
+
+  function startPanHold(direction, event) {
+    if (event) event.preventDefault();
+    stopPanHold();
+    panCamera(direction);
+    panDelayTimer = setTimeout(() => {
+      panDelayTimer = null;
+      panRepeatTimer = setInterval(() => {
+        panCamera(direction, CONFIG.panHoldStep);
+      }, CONFIG.panHoldEvery);
+    }, CONFIG.panHoldDelay);
   }
 
   function updatePanButtons() {
@@ -608,7 +683,7 @@
 
   function renderBands(m) {
     const bandHeight = m.worldH / 3;
-    const fills = ['#f0e7d3', '#f6eedc', '#fbf4e6'];
+    const fills = ['#eee6d5', '#f5eddc', '#fbf4e6'];
     for (let i = 0; i < 3; i++) {
       ctx.fillStyle = fills[i];
       ctx.fillRect(0, i * bandHeight, m.worldW, bandHeight);
@@ -626,22 +701,37 @@
     ctx.setLineDash([]);
   }
 
+  function drawStatusPill(text, y, background, foreground) {
+    const fontSize = 9 / camera.zoom;
+    ctx.font = `800 ${fontSize}px system-ui`;
+    const width = ctx.measureText(text).width + 12 / camera.zoom;
+    const height = 15 / camera.zoom;
+    ctx.fillStyle = background;
+    ctx.beginPath();
+    ctx.roundRect(-width / 2, y, width, height, 7 / camera.zoom);
+    ctx.fill();
+    ctx.fillStyle = foreground;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 0, y + height / 2 + .2 / camera.zoom);
+  }
+
   function renderPositionMarker(resource, m) {
     if (!resource.initiallyKnown || resource.coverage > 0 || resource.owned) return;
     const x = (resource.x + .5) * m.sx;
     const y = (resource.y + .5) * m.sy;
-    const r = 8 / camera.zoom;
+    const r = 9 / camera.zoom;
     ctx.save();
     ctx.translate(x,y);
-    ctx.strokeStyle = 'rgba(90,83,72,.70)';
-    ctx.lineWidth = 1.5 / camera.zoom;
+    ctx.strokeStyle = COLORS.positionSoft;
+    ctx.lineWidth = 2 / camera.zoom;
     ctx.setLineDash([3 / camera.zoom, 3 / camera.zoom]);
     ctx.beginPath();
     ctx.arc(0,0,r,0,TAU);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(77,71,62,.74)';
-    ctx.font = `700 ${10 / camera.zoom}px system-ui`;
+    ctx.fillStyle = COLORS.position;
+    ctx.font = `800 ${10 / camera.zoom}px system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('?',0,.5 / camera.zoom);
@@ -649,24 +739,36 @@
   }
 
   function renderCoin(resource, m) {
+    const x = (resource.x + .5) * m.sx;
+    const y = (resource.y + .5) * m.sy;
+    const radius = resource.radius * m.sx;
+
     if (resource.owned) {
-      const x = (resource.x + .5) * m.sx;
-      const y = (resource.y + .5) * m.sy;
-      const radius = resource.radius * m.sx;
       ctx.save();
       ctx.translate(x,y);
-      ctx.fillStyle = resource.isTreasure ? '#ffe59a' : '#f6e3a6';
-      ctx.strokeStyle = resource.isTreasure ? '#8d6b12' : '#756125';
-      ctx.lineWidth = 2.5 / camera.zoom;
+      ctx.fillStyle = resource.isTreasure ? COLORS.treasure : COLORS.coin;
+      ctx.strokeStyle = COLORS.acquired;
+      ctx.lineWidth = 4 / camera.zoom;
       ctx.beginPath();
       ctx.arc(0,0,radius,0,TAU);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = '#55440d';
-      ctx.font = `800 ${clamp(radius * .65, 11 / camera.zoom, 22 / camera.zoom)}px system-ui`;
+
+      ctx.fillStyle = resource.isTreasure ? '#624a00' : '#493b10';
+      ctx.font = `850 ${clamp(radius * .65, 11 / camera.zoom, 22 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(resource.value),0,.5 / camera.zoom);
+
+      const markR = 8 / camera.zoom;
+      ctx.fillStyle = COLORS.acquired;
+      ctx.beginPath();
+      ctx.arc(radius * .72, -radius * .72, markR, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = `900 ${11 / camera.zoom}px system-ui`;
+      ctx.fillText('✓', radius * .72, -radius * .72 + .3 / camera.zoom);
+      drawStatusPill('取得', radius + 5 / camera.zoom, COLORS.acquired, '#fff');
       ctx.restore();
       return;
     }
@@ -683,33 +785,67 @@
     const minY = Math.max(0, Math.floor(resource.y - resource.radius));
     const maxY = Math.min(CONFIG.rows - 1, Math.ceil(resource.y + resource.radius));
 
-    ctx.fillStyle = resource.isTreasure ? '#f8d36e' : '#e7cf8a';
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        const dx = x - resource.x;
-        const dy = y - resource.y;
+    ctx.fillStyle = resource.isTreasure ? COLORS.partialTreasure : COLORS.partial;
+    for (let yy = minY; yy <= maxY; yy++) {
+      for (let xx = minX; xx <= maxX; xx++) {
+        const dx = xx - resource.x;
+        const dy = yy - resource.y;
         if (dx * dx + dy * dy > r2) continue;
-        if (!ink.has(key(x,y))) continue;
-        ctx.fillRect(x * m.sx, y * m.sy, Math.ceil(m.sx + .5), Math.ceil(m.sy + .5));
+        if (!ink.has(key(xx,yy))) continue;
+        ctx.fillRect(xx * m.sx, yy * m.sy, Math.ceil(m.sx + .5), Math.ceil(m.sy + .5));
       }
     }
 
     if (resource.scoreKnown) {
-      const x = (resource.x + .5) * m.sx;
-      const y = (resource.y + .5) * m.sy;
-      const radius = resource.radius * m.sx;
       ctx.save();
       ctx.translate(x,y);
-      ctx.fillStyle = '#54440f';
-      ctx.strokeStyle = 'rgba(255,250,229,.85)';
+      ctx.strokeStyle = COLORS.revealed;
+      ctx.lineWidth = 2.5 / camera.zoom;
+      ctx.beginPath();
+      ctx.arc(0,0,radius + 2 / camera.zoom,0,TAU);
+      ctx.stroke();
+
+      ctx.fillStyle = COLORS.revealedDark;
+      ctx.strokeStyle = 'rgba(255,250,229,.92)';
       ctx.lineWidth = 3 / camera.zoom;
-      ctx.font = `800 ${clamp(radius * .56, 11 / camera.zoom, 20 / camera.zoom)}px system-ui`;
+      ctx.font = `850 ${clamp(radius * .56, 11 / camera.zoom, 20 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeText(String(resource.value),0,.5 / camera.zoom);
       ctx.fillText(String(resource.value),0,.5 / camera.zoom);
+      drawStatusPill('判明', radius + 5 / camera.zoom, '#f4c86f', COLORS.revealedDark);
       ctx.restore();
     }
+  }
+
+  function renderFeedback(m) {
+    if (!feedback) return;
+    const acquired = feedback.type === 'acquired';
+    const bg = acquired ? COLORS.acquired : COLORS.revealed;
+    const title = feedback.title;
+    const detail = feedback.detail;
+    const centerX = m.w / 2;
+    const top = 54;
+    const width = Math.min(180, m.w - 40);
+    const height = 44;
+
+    ctx.save();
+    ctx.fillStyle = bg;
+    ctx.shadowColor = 'rgba(0,0,0,.20)';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(centerX - width / 2, top, width, height, 13);
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 12px system-ui';
+    ctx.fillText(title, centerX - 18, top + height / 2);
+    ctx.font = '900 20px system-ui';
+    ctx.fillText(detail, centerX + 42, top + height / 2);
+    ctx.restore();
   }
 
   function render() {
@@ -726,7 +862,7 @@
 
     for (const k of ink) {
       const p = parseKey(k);
-      ctx.fillStyle = connected.has(k) ? '#22211f' : '#4e4b46';
+      ctx.fillStyle = connected.has(k) ? '#1f2927' : '#565b59';
       ctx.fillRect(
         Math.floor(p.x * m.sx),
         Math.floor(p.y * m.sy),
@@ -736,7 +872,7 @@
     }
 
     if (drawing) {
-      ctx.fillStyle = 'rgba(28,27,25,.82)';
+      ctx.fillStyle = 'rgba(24,35,32,.86)';
       for (const k of drawing.cells) {
         const p = parseKey(k);
         ctx.fillRect(
@@ -752,13 +888,13 @@
     ctx.save();
     ctx.translate((h.x+.5)*m.sx, (h.y+.5)*m.sy);
     ctx.fillStyle = '#fffaf0';
-    ctx.strokeStyle = '#232220';
+    ctx.strokeStyle = '#263d37';
     ctx.lineWidth = 2 / camera.zoom;
     ctx.beginPath();
     ctx.arc(0,0, Math.max(14 / camera.zoom, CONFIG.homeRadius*m.sx), 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = '#232220';
+    ctx.fillStyle = '#263d37';
     ctx.font = `700 ${11 / camera.zoom}px system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -768,6 +904,7 @@
     for (const resource of resources) renderCoin(resource, m);
 
     ctx.restore();
+    renderFeedback(m);
   }
 
   function formatInk(value) {
@@ -812,7 +949,7 @@
         <strong>特別埋蔵</strong>
         <span>50×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。橙は点数判明、緑は取得済み。</p>`;
   }
 
   function reset(useSameSeed) {
@@ -829,6 +966,10 @@
     gesture = null;
     pointers.clear();
     gameOver = false;
+    feedback = null;
+    if (feedbackTimer) clearTimeout(feedbackTimer);
+    feedbackTimer = null;
+    stopPanHold();
     result.hidden = true;
     distributionPanel.hidden = true;
 
@@ -962,8 +1103,16 @@
   zoomInBtn.addEventListener('click', () => zoomTo(camera.zoom + CONFIG.zoom.step));
   zoomOutBtn.addEventListener('click', () => zoomTo(camera.zoom - CONFIG.zoom.step));
   zoomResetBtn.addEventListener('click', resetCamera);
-  viewLeftBtn.addEventListener('click', () => panCamera(-1));
-  viewRightBtn.addEventListener('click', () => panCamera(1));
+
+  viewLeftBtn.addEventListener('pointerdown', event => startPanHold(-1, event));
+  viewRightBtn.addEventListener('pointerdown', event => startPanHold(1, event));
+  for (const button of [viewLeftBtn, viewRightBtn]) {
+    button.addEventListener('pointerup', stopPanHold);
+    button.addEventListener('pointercancel', stopPanHold);
+    button.addEventListener('pointerleave', stopPanHold);
+  }
+  window.addEventListener('pointerup', stopPanHold);
+
   distributionBtn.addEventListener('click', () => {
     distributionPanel.hidden = !distributionPanel.hidden;
   });
