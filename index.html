@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="theme-color" content="#f3eddc" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Ink Resource" />
+  <link rel="manifest" href="app.webmanifest" />
+  <title>Ink Resource Prototype</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hud">
+      <div class="stat"><span>得点</span><strong id="score">0</strong></div>
+      <div class="stat"><span>残り</span><strong id="turns">24</strong></div>
+      <div class="stat compact"><span>発見</span><strong id="found">0/0</strong></div>
+    </header>
+
+    <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
+      <canvas id="board" width="720" height="1120"></canvas>
+      <div class="hint" id="hint">スプラッシュする場所をタップ</div>
+    </section>
+
+    <nav class="actions" aria-label="行動選択">
+      <button id="splashBtn" class="action active" type="button">
+        <span class="action-icon">✦</span>
+        <span>スプラッシュ</span>
+      </button>
+      <button id="brushBtn" class="action" type="button">
+        <span class="action-icon">╱</span>
+        <span>筆</span>
+      </button>
+      <button id="newBtn" class="subaction" type="button">新しい盤面</button>
+    </nav>
+
+    <div class="result" id="result" hidden>
+      <div class="result-card">
+        <p>今回の得点</p>
+        <strong id="finalScore">0</strong>
+        <div class="result-actions">
+          <button id="retryBtn" type="button">同じ盤面でもう一度</button>
+          <button id="nextBtn" type="button">新しい盤面</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
