@@ -10,22 +10,23 @@
     brushMaxLength: 56,
     brushStartPadding: 6,
     zoom: {
-      fit: .65,
-      min: .65,
-      default: .75,
+      fit: .45,
+      min: .45,
+      default: .65,
       max: 1,
       step: .1,
     },
     splash: {
       coreCount: [2, 4],
-      dropletCount: [9, 15],
-      speckCount: [12, 22],
+      dropletCount: [8, 12],
+      speckCount: [5, 9],
       coreRadius: [8, 12],
       dropletRadius: [2.8, 5.6],
-      speckRadius: [1.3, 2.7],
+      speckRadius: [2.0, 3.4],
       spread: 60,
       farSpread: 84,
-      minIslandArea: 12,
+      aimDrift: [8, 20],
+      minIslandArea: 24,
     },
     resources: {
       visible: 7,
@@ -167,17 +168,25 @@
     const core = randInt(...CONFIG.splash.coreCount);
     const droplets = randInt(...CONFIG.splash.dropletCount);
     const specks = randInt(...CONFIG.splash.speckCount);
+    const impact = splashPoint(cx, cy, ...CONFIG.splash.aimDrift);
 
+    // The tap is an aim point, not a guaranteed hit point. The actual splash
+    // drifts before its islands are generated, so even a visible resource can miss.
     for (let i = 0; i < core; i++) {
-      const p = splashPoint(cx, cy, i === 0 ? 0 : 6, i === 0 ? 10 : CONFIG.splash.spread * .55);
+      const p = splashPoint(
+        impact.x,
+        impact.y,
+        i === 0 ? 3 : 8,
+        i === 0 ? 14 : CONFIG.splash.spread * .55
+      );
       addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
     }
     for (let i = 0; i < droplets; i++) {
-      const p = splashPoint(cx, cy, 12, CONFIG.splash.spread);
+      const p = splashPoint(impact.x, impact.y, 12, CONFIG.splash.spread);
       addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
     }
     for (let i = 0; i < specks; i++) {
-      const p = splashPoint(cx, cy, 20, CONFIG.splash.farSpread);
+      const p = splashPoint(impact.x, impact.y, 20, CONFIG.splash.farSpread);
       addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius), splashInk);
     }
 
@@ -345,7 +354,7 @@
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
     hintEl.textContent = mode === 'splash'
-      ? 'タップでスプラッシュ・2本指で縮小/移動'
+      ? '狙いにはブレあり・2本指で縮小/移動'
       : `線を引く（最大 ${CONFIG.brushMaxLength}）・2本指で縮小/移動`;
   }
 
