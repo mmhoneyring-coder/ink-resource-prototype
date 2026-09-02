@@ -11,6 +11,15 @@ export const DEFAULT_SPLASH = Object.freeze({
   minIslandArea: 24,
 });
 
+export const DEFAULT_RESOURCE = Object.freeze({
+  count: 30,
+  baseRadius: 3,
+  radiusJitter: 0.25,
+  minGap: 3,
+  countMode: 'fixed',
+  scaleMode: 'auto',
+});
+
 export const DEFAULT_CASE = Object.freeze({
   cols: 180,
   rows: 280,
@@ -26,6 +35,7 @@ export const BOARD_PRESETS = Object.freeze([
   [260, 450],
 ]);
 
+const BASE_BOARD_AREA = DEFAULT_CASE.cols * DEFAULT_CASE.rows;
 const TAU = Math.PI * 2;
 
 export function mulberry32(seed) {
@@ -227,7 +237,7 @@ function normalizedTarget(strategy, shot, count, rng) {
 }
 
 function countCoverage(ink, cols, rows) {
-  const bandCounts = [0, 0, 0]; // upper, middle, lower
+  const bandCounts = [0, 0, 0];
   const bandTotals = [0, 0, 0];
   let total = 0;
 
@@ -251,6 +261,102 @@ function countCoverage(ink, cols, rows) {
   };
 }
 
+export function autoResourceScale(cols, rows) {
+  const areaRatio = Math.max(0.1, (cols * rows) / BASE_BOARD_AREA);
+  return clamp(areaRatio ** 0.32, 0.8, 1.6);
+}
+
+export function resourceCountForBoard(baseCount, cols, rows, mode = 'fixed') {
+  if (mode !== 'density') return Math.max(1, Math.round(baseCount));
+  return Math.max(1, Math.round(baseCount * (cols * rows) / BASE_BOARD_AREA));
+}
+
+function resourceScaleForBoard(cols, rows, mode = 'auto') {
+  return mode === 'fixed' ? 1 : autoResourceScale(cols, rows);
+}
+
+function createResources(cols, rows, seed, options) {
+  const rng = mulberry32((seed ^ 0xA5A5A5A5) >>> 0);
+  const count = resourceCountForBoard(options.count, cols, rows, options.countMode);
+  const scale = resourceScaleForBoard(cols, rows, options.scaleMode);
+  const jitter = clamp(Number(options.radiusJitter ?? DEFAULT_RESOURCE.radiusJitter), 0, .8);
+  const baseRadius = Math.max(.5, Number(options.baseRadius ?? DEFAULT_RESOURCE.baseRadius));
+  const minGap = Math.max(0, Number(options.minGap ?? DEFAULT_RESOURCE.minGap));
+  const resources = [];
+
+  for (let i = 0; i < count; i++) {
+    const radius = baseRadius * scale * rand(rng, 1 - jitter, 1 + jitter);
+    const margin = Math.ceil(radius + 2);
+    let x = rand(rng, margin, Math.max(margin, cols - margin));
+    let y = rand(rng, margin, Math.max(margin, rows - margin));
+
+    for (let tries = 0; tries < 160; tries++) {
+      const overlaps = resources.some(r => Math.hypot(x - r.x, y - r.y) < radius + r.radius + minGap);
+      if (!overlaps) break;
+      x = rand(rng, margin, Math.max(margin, cols - margin));
+      y = rand(rng, margin, Math.max(margin, rows - margin));
+    }
+
+    resources.push({
+      x,
+      y,
+      radius,
+      band: Math.min(2, Math.floor((y * 3) / rows)),
+      hit: false,
+    });
+  }
+
+  return { resources, count, scale };
+}
+
+function resourceTouchesInk(resource, ink, cols, rows) {
+  const r2 = resource.radius * resource.radius;
+  const minX = Math.max(0, Math.floor(resource.x - resource.radius));
+  const maxX = Math.min(cols - 1, Math.ceil(resource.x + resource.radius));
+  const minY = Math.max(0, Math.floor(resource.y - resource.radius));
+  const maxY = Math.min(rows - 1, Math.ceil(resource.y + resource.radius));
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const dx = x - resource.x;
+      const dy = y - resource.y;
+      if (dx * dx + dy * dy > r2) continue;
+      if (ink[indexOf(x, y, cols)]) return true;
+    }
+  }
+  return false;
+}
+
+function evaluateResources(ink, cols, rows, seed, resourceOptions) {
+  const generated = createResources(cols, rows, seed, resourceOptions);
+  const totals = [0, 0, 0];
+  const hits = [0, 0, 0];
+  let hitCount = 0;
+
+  for (const resource of generated.resources) {
+    totals[resource.band]++;
+    resource.hit = resourceTouchesInk(resource, ink, cols, rows);
+    if (!resource.hit) continue;
+    hitCount++;
+    hits[resource.band]++;
+  }
+
+  const safeRate = (hit, total) => total ? hit / total : null;
+  return {
+    resources: generated.resources,
+    resourceCount: generated.count,
+    resourceScale: generated.scale,
+    meanResourceRadius: generated.resources.reduce((sum, r) => sum + r.radius, 0) / Math.max(1, generated.resources.length),
+    hitCount,
+    hitRate: hitCount / Math.max(1, generated.count),
+    resourceUpper: safeRate(hits[0], totals[0]),
+    resourceMiddle: safeRate(hits[1], totals[1]),
+    resourceLower: safeRate(hits[2], totals[2]),
+    bandResourceTotals: totals,
+    bandResourceHits: hits,
+  };
+}
+
 export function simulateExploration(options = {}) {
   const cols = Number(options.cols ?? DEFAULT_CASE.cols);
   const rows = Number(options.rows ?? DEFAULT_CASE.rows);
@@ -258,6 +364,7 @@ export function simulateExploration(options = {}) {
   const strategy = options.strategy ?? DEFAULT_CASE.strategy;
   const seed = Number(options.seed ?? DEFAULT_CASE.seed) >>> 0;
   const splash = { ...DEFAULT_SPLASH, ...(options.splash ?? {}) };
+  const resourceOptions = { ...DEFAULT_RESOURCE, ...(options.resources ?? {}) };
   const rng = mulberry32(seed);
   const ink = makeGrid(cols, rows);
   let addedCells = 0;
@@ -268,6 +375,7 @@ export function simulateExploration(options = {}) {
   }
 
   const coverage = countCoverage(ink, cols, rows);
+  const resourceResult = evaluateResources(ink, cols, rows, seed, resourceOptions);
   return {
     cols,
     rows,
@@ -276,12 +384,15 @@ export function simulateExploration(options = {}) {
     seed,
     addedCells,
     ...coverage,
+    ...resourceResult,
     ink: options.returnInk ? ink : undefined,
+    resources: options.returnResources ? resourceResult.resources : undefined,
   };
 }
 
 function mean(values) {
-  return values.reduce((sum, v) => sum + v, 0) / Math.max(1, values.length);
+  const valid = values.filter(v => Number.isFinite(v));
+  return valid.reduce((sum, v) => sum + v, 0) / Math.max(1, valid.length);
 }
 
 function percentile(sorted, q) {
@@ -303,10 +414,12 @@ export function runExplorationBatch(options = {}) {
       ...options,
       seed: (baseSeed + Math.imul(i + 1, 0x9E3779B1)) >>> 0,
       returnInk: false,
+      returnResources: false,
     }));
   }
 
   const coverages = rows.map(r => r.coverage).sort((a, b) => a - b);
+  const hitRates = rows.map(r => r.hitRate).sort((a, b) => a - b);
   return {
     cols: rows[0].cols,
     rows: rows[0].rows,
@@ -314,6 +427,9 @@ export function runExplorationBatch(options = {}) {
     strategy: rows[0].strategy,
     trials,
     seed: baseSeed,
+    resourceCount: rows[0].resourceCount,
+    resourceScale: rows[0].resourceScale,
+    meanResourceRadius: mean(rows.map(r => r.meanResourceRadius)),
     meanInkCells: mean(rows.map(r => r.inkCells)),
     meanCoverage: mean(rows.map(r => r.coverage)),
     meanUpper: mean(rows.map(r => r.upper)),
@@ -322,6 +438,14 @@ export function runExplorationBatch(options = {}) {
     p10Coverage: percentile(coverages, .10),
     p50Coverage: percentile(coverages, .50),
     p90Coverage: percentile(coverages, .90),
+    meanHitCount: mean(rows.map(r => r.hitCount)),
+    meanHitRate: mean(rows.map(r => r.hitRate)),
+    p10HitRate: percentile(hitRates, .10),
+    p50HitRate: percentile(hitRates, .50),
+    p90HitRate: percentile(hitRates, .90),
+    meanResourceUpper: mean(rows.map(r => r.resourceUpper)),
+    meanResourceMiddle: mean(rows.map(r => r.resourceMiddle)),
+    meanResourceLower: mean(rows.map(r => r.resourceLower)),
   };
 }
 
