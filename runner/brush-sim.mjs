@@ -12,6 +12,14 @@ export const DEFAULT_SCORE_MODEL = Object.freeze({
   knownRatio: 0.20,
   visibleGoalValue: 12,
   treasureValue: 50,
+  treasureRadius: 1.8,
+  sizeBands: Object.freeze([
+    Object.freeze({ max: 3, radius: 5.0 }),
+    Object.freeze({ max: 6, radius: 4.3 }),
+    Object.freeze({ max: 10, radius: 3.7 }),
+    Object.freeze({ max: 16, radius: 3.1 }),
+    Object.freeze({ max: Infinity, radius: 2.6 }),
+  ]),
   bandValues: Object.freeze({
     upper: Object.freeze([6, 8, 10, 12, 14, 16, 20]),
     middle: Object.freeze([3, 4, 5, 6, 7, 8, 10, 12]),
@@ -39,6 +47,10 @@ function percentile(values, q) {
   return next === undefined ? sorted[base] : sorted[base] + rest * (next - sorted[base]);
 }
 
+function rand(rng, min, max) {
+  return min + rng() * (max - min);
+}
+
 function randInt(rng, min, max) {
   return Math.floor(rng() * (max - min + 1)) + min;
 }
@@ -57,7 +69,7 @@ function closestPointOnSegment(px, py, a, b) {
   const vy = b.y - a.y;
   const len2 = vx * vx + vy * vy;
   if (len2 <= 1e-9) return { x: a.x, y: a.y, distance: Math.hypot(px - a.x, py - a.y) };
-  const t = clamp(((px - a.x) * vx + (py - a.y) * vy) / len2, 0, 1);
+  const t = clamp(((px - a.x) * vx + (py - a.x * 0 + py - py + py - a.y) * 0 + (py - a.y) * vy) / len2, 0, 1);
   const x = a.x + vx * t;
   const y = a.y + vy * t;
   return { x, y, distance: Math.hypot(px - x, py - y) };
@@ -85,6 +97,7 @@ function scoreModelFrom(options = {}) {
   return {
     ...DEFAULT_SCORE_MODEL,
     ...supplied,
+    sizeBands: supplied.sizeBands ?? DEFAULT_SCORE_MODEL.sizeBands,
     bandValues: {
       ...DEFAULT_SCORE_MODEL.bandValues,
       ...(supplied.bandValues ?? {}),
@@ -96,9 +109,34 @@ function bandExpectedValues(scoreModel) {
   return BAND_NAMES.map(name => mean(scoreModel.bandValues[name]));
 }
 
-function pickGoal(resources, treasureId) {
-  const candidates = resources.filter(r => r.id !== treasureId && r.band === 1);
-  const pool = candidates.length ? candidates : resources.filter(r => r.id !== treasureId);
+function radiusForValue(value, scoreModel, isTreasure = false) {
+  if (isTreasure) return scoreModel.treasureRadius;
+  const band = scoreModel.sizeBands.find(item => value <= item.max) ?? scoreModel.sizeBands.at(-1);
+  return band?.radius ?? 3;
+}
+
+function resourceTouchesInk(resource, ink, cols, rows) {
+  if (!ink) return false;
+  const r2 = resource.radius * resource.radius;
+  const minX = Math.max(0, Math.floor(resource.x - resource.radius));
+  const maxX = Math.min(cols - 1, Math.ceil(resource.x + resource.radius));
+  const minY = Math.max(0, Math.floor(resource.y - resource.radius));
+  const maxY = Math.min(rows - 1, Math.ceil(resource.y + resource.radius));
+
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const dx = x - resource.x;
+      const dy = y - resource.y;
+      if (dx * dx + dy * dy > r2) continue;
+      if (ink[y * cols + x]) return true;
+    }
+  }
+  return false;
+}
+
+function pickGoal(resources) {
+  const candidates = resources.filter(r => r.band === 1);
+  const pool = candidates.length ? candidates : resources;
   if (!pool.length) return null;
   return pool.reduce((best, r) => {
     const d = Math.abs(r.yNorm - 0.50);
@@ -106,9 +144,41 @@ function pickGoal(resources, treasureId) {
   }, null).resource;
 }
 
-function applyScoreAndVisibility(baseResources, seed, scoreModel, rows) {
+function createTreasure(resources, rng, scoreModel, treasureBand, cols, rows) {
+  const radius = radiusForValue(scoreModel.treasureValue, scoreModel, true);
+  const margin = radius + 3;
+  const bandLo = treasureBand / 3 * rows;
+  const bandHi = (treasureBand + 1) / 3 * rows;
+  let x = cols / 2;
+  let y = (bandLo + bandHi) / 2;
+
+  for (let tries = 0; tries < 240; tries++) {
+    const candidateX = rand(rng, margin, Math.max(margin, cols - margin));
+    const candidateY = rand(rng, bandLo + margin, Math.max(bandLo + margin, bandHi - margin));
+    const overlaps = resources.some(r => Math.hypot(candidateX - r.x, candidateY - r.y) < radius + r.radius + 3);
+    x = candidateX;
+    y = candidateY;
+    if (!overlaps) break;
+  }
+
+  return {
+    x,
+    y,
+    radius,
+    band: treasureBand,
+    id: resources.length,
+    yNorm: y / rows,
+    value: scoreModel.treasureValue,
+    visibility: 'hidden',
+    isGoal: false,
+    isTreasure: true,
+    hit: false,
+  };
+}
+
+function applyScoreAndVisibility(baseResources, seed, scoreModel, rows, cols, ink) {
   const rng = mulberry32((seed ^ 0xC0FFEE21) >>> 0);
-  const resources = baseResources.map((resource, id) => ({
+  const normalResources = baseResources.map((resource, id) => ({
     ...resource,
     id,
     yNorm: resource.y / rows,
@@ -118,36 +188,34 @@ function applyScoreAndVisibility(baseResources, seed, scoreModel, rows) {
     isTreasure: false,
   }));
 
-  for (const resource of resources) {
+  for (const resource of normalResources) {
     const values = scoreModel.bandValues[BAND_NAMES[resource.band]];
     resource.value = values[randInt(rng, 0, values.length - 1)];
+    resource.radius = radiusForValue(resource.value, scoreModel, false);
   }
 
-  // Exactly one 50-point treasure is buried in either the middle or lower band.
-  const treasureBand = rng() < 0.5 ? 1 : 2;
-  let treasurePool = resources.filter(r => r.band === treasureBand);
-  if (!treasurePool.length) treasurePool = resources.filter(r => r.band === 1 || r.band === 2);
-  const treasure = treasurePool.length ? treasurePool[randInt(rng, 0, treasurePool.length - 1)] : resources[0];
-  if (treasure) {
-    treasure.value = scoreModel.treasureValue;
-    treasure.isTreasure = true;
-  }
-
-  // One fully visible, moderate-value resource acts as a soft goal around the middle band.
-  const goal = pickGoal(resources, treasure?.id);
+  // One fully visible, moderate-value normal resource acts as a soft goal around the middle band.
+  const goal = pickGoal(normalResources);
   if (goal) {
     goal.value = scoreModel.visibleGoalValue;
+    goal.radius = radiusForValue(goal.value, scoreModel, false);
     goal.isGoal = true;
   }
 
-  const n = resources.length;
-  const visibleTarget = Math.min(n, Math.max(1, Math.round(n * scoreModel.visibleRatio)));
-  const knownTarget = Math.min(n - visibleTarget, Math.max(0, Math.round(n * scoreModel.knownRatio)));
-  const available = shuffled(resources.filter(r => !r.isGoal && !r.isTreasure), rng);
+  // The treasure is an extra 41st resource, not a replacement for one of the 40 normal resources.
+  const treasureBand = rng() < 0.5 ? 1 : 2;
+  const treasure = createTreasure(normalResources, rng, scoreModel, treasureBand, cols, rows);
+  const resources = [...normalResources, treasure];
+
+  // Visibility ratios apply to the 40 normal resources. Treasure is always fully hidden.
+  const normalCount = normalResources.length;
+  const visibleTarget = Math.min(normalCount, Math.max(1, Math.round(normalCount * scoreModel.visibleRatio)));
+  const knownTarget = Math.min(normalCount - visibleTarget, Math.max(0, Math.round(normalCount * scoreModel.knownRatio)));
+  const available = shuffled(normalResources.filter(r => !r.isGoal), rng);
   let cursor = 0;
 
   if (goal) goal.visibility = 'visible';
-  if (treasure) treasure.visibility = 'hidden';
+  treasure.visibility = 'hidden';
 
   let visibleAssigned = goal ? 1 : 0;
   while (visibleAssigned < visibleTarget && cursor < available.length) {
@@ -161,11 +229,16 @@ function applyScoreAndVisibility(baseResources, seed, scoreModel, rows) {
     knownAssigned++;
   }
 
+  // Re-evaluate splash hits after score-dependent radii are assigned.
+  for (const resource of resources) {
+    resource.hit = resourceTouchesInk(resource, ink, cols, rows);
+  }
+
   return {
     resources,
     treasureBand,
     goalId: goal?.id ?? null,
-    treasureId: treasure?.id ?? null,
+    treasureId: treasure.id,
   };
 }
 
@@ -232,7 +305,6 @@ function chooseResource(resources, home, segments, strategy, expectedByBand) {
     } else if (strategy === 'goalFirst' && resource.isGoal) {
       utility = 1e6;
     } else {
-      // Default: point efficiency. Unknown-value resources use the public band expectation.
       utility = value / (distance + 12);
     }
 
@@ -246,6 +318,7 @@ function chooseResource(resources, home, segments, strategy, expectedByBand) {
 function summarizeDistribution(resources) {
   const bands = [new Map(), new Map(), new Map()];
   for (const resource of resources) {
+    if (resource.isTreasure) continue;
     const map = bands[resource.band];
     map.set(resource.value, (map.get(resource.value) ?? 0) + 1);
   }
@@ -269,7 +342,14 @@ export function simulateBrushRun(options = {}) {
     returnResources: true,
   });
 
-  const scored = applyScoreAndVisibility(exploration.resources, exploration.seed, scoreModel, exploration.rows);
+  const scored = applyScoreAndVisibility(
+    exploration.resources,
+    exploration.seed,
+    scoreModel,
+    exploration.rows,
+    exploration.cols,
+    exploration.ink,
+  );
   const resources = initRuntimeState(scored.resources);
   const expectedByBand = bandExpectedValues(scoreModel);
 
@@ -331,11 +411,13 @@ export function simulateBrushRun(options = {}) {
   const knownCount = resources.filter(r => r.visibility === 'known').length;
   const hiddenCount = resources.filter(r => r.visibility === 'hidden').length;
   const goalActivated = resources.some(r => r.isGoal && r.activated);
-  const treasureActivated = resources.some(r => r.isTreasure && r.activated);
+  const treasureResource = resources.find(r => r.isTreasure);
+  const treasureActivated = Boolean(treasureResource?.activated);
 
   return {
     ...exploration,
     resources,
+    totalResourceCount: resources.length,
     brushSegments: segments,
     brushBudget: budget,
     brushUsed: used,
@@ -354,6 +436,8 @@ export function simulateBrushRun(options = {}) {
     hiddenCount,
     goalActivated,
     treasureActivated,
+    treasureSplashHit: Boolean(treasureResource?.splashHit),
+    treasureBrushHit: Boolean(treasureResource?.discoveredByBrush),
     goalId: scored.goalId,
     treasureId: scored.treasureId,
     treasureBand: scored.treasureBand,
@@ -384,6 +468,7 @@ export function runBrushBatch(options = {}) {
     rows: first.rows,
     trials,
     resourceCount: first.resourceCount,
+    totalResourceCount: first.totalResourceCount,
     resourceScale: first.resourceScale,
     meanResourceRadius: mean(runs.map(r => r.meanResourceRadius)),
     meanCoverage: mean(runs.map(r => r.coverage)),
@@ -401,6 +486,8 @@ export function runBrushBatch(options = {}) {
     p90Score: percentile(scores, .90),
     goalRate: mean(runs.map(r => r.goalActivated ? 1 : 0)),
     treasureRate: mean(runs.map(r => r.treasureActivated ? 1 : 0)),
+    treasureSplashRate: mean(runs.map(r => r.treasureSplashHit ? 1 : 0)),
+    treasureBrushRate: mean(runs.map(r => r.treasureBrushHit ? 1 : 0)),
     meanBrushUsed: mean(runs.map(r => r.brushUsed)),
     meanBrushSegments: mean(runs.map(r => r.brushSegmentCount)),
     brushBudget: first.brushBudget,
