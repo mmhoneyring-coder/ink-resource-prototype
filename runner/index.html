@@ -11,7 +11,7 @@
     <header>
       <div>
         <h1>Ink Resource Balance Runner</h1>
-        <p>現在のスプラッシュ形状と仮の筆接続を使って、盤面サイズ・資源サイズ・探索と有効化数を大量試行する独立ランナー。</p>
+        <p>スプラッシュ、仮の筆接続、資源の情報状態と点数を使って、探索・有効化・得点を大量試行する独立ランナー。</p>
       </div>
       <a href="../">ゲームへ</a>
     </header>
@@ -20,7 +20,7 @@
       <label>試行数<input id="trials" type="number" min="1" max="10000" step="50" value="300"></label>
       <label>スプラッシュ回数<input id="splashes" type="number" min="1" max="30" value="8"></label>
       <label>Seed<input id="seed" type="number" min="0" step="1" value="12345"></label>
-      <label>狙い方
+      <label>スプラッシュの狙い方
         <select id="strategy">
           <option value="wide">全体に広く</option>
           <option value="upward">下から上へ進行</option>
@@ -28,6 +28,15 @@
           <option value="middle">中層集中</option>
           <option value="upper">上層集中</option>
           <option value="random">ランダム</option>
+        </select>
+      </label>
+      <label>筆の取得方針
+        <select id="brushStrategy">
+          <option value="valueRate">点数 / 距離</option>
+          <option value="nearest">近い順</option>
+          <option value="highValue">高得点優先</option>
+          <option value="upper">上層寄り</option>
+          <option value="goalFirst">見える当たり優先</option>
         </select>
       </label>
       <label>基準資源数<input id="resourceCount" type="number" min="1" max="500" value="40"></label>
@@ -47,8 +56,9 @@
       <label>仮の筆距離予算<input id="brushBudget" type="number" min="0" max="2000" step="10" value="480"></label>
       <label>筆半径<input id="brushRadius" type="number" min="0.25" max="20" step="0.25" value="2"></label>
       <label>START位置（上から%）<input id="startY" type="number" min="50" max="98" step="1" value="78"></label>
-      <button id="compareBtn" class="primary">4サイズ比較</button>
-      <button id="singleBtn">現在サイズだけ</button>
+      <button id="compareBtn">4サイズ比較</button>
+      <button id="strategyCompareBtn" class="primary">5方針比較</button>
+      <button id="singleBtn">現在条件だけ</button>
     </section>
 
     <section class="card custom">
@@ -58,23 +68,35 @@
     </section>
 
     <section class="card">
+      <h2>仮の点数・情報モデル</h2>
+      <p>40個基準では、約20%が「位置＋得点が見える」、約20%が「位置だけ見える（得点?）」、残り約60%が「インクがかかるまで存在も見えない」。見えている資源の1つは必ず12ptとして中層付近に置き、擬似ゴールにする。さらに50ptのお宝を1枚だけ、中層または下層のどちらかに完全隠しで埋める。</p>
+      <p class="note">通常点の候補：下層 1/2/3/4/5/6/8、 中層 3/4/5/6/7/8/10/12、 上層 6/8/10/12/14/16/20。上ほど期待値は高いが低得点も出る。資源サイズと点数はこの版ではまだ独立。</p>
+    </section>
+
+    <section class="card">
       <h2>集計</h2>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>盤面</th><th>資源数</th><th>サイズ倍率</th><th>スプラッシュ発見</th><th>筆で新発見</th><th>最終発見</th><th>有効化</th><th>有効化P10</th><th>P50</th><th>P90</th><th>筆使用/予算</th><th>筆本数</th><th>面積探索</th></tr>
+            <tr><th>盤面</th><th>筆方針</th><th>公開/存在/隠し</th><th>Sで隠し発見</th><th>筆で隠し発見</th><th>最終判明</th><th>有効化</th><th>平均得点</th><th>得点P10</th><th>P50</th><th>P90</th><th>12ptゴール</th><th>50ptお宝</th><th>筆使用/予算</th></tr>
           </thead>
           <tbody id="results"></tbody>
         </table>
       </div>
-      <p class="note">仮の筆モデル：STARTから、スプラッシュで見つかった未取得資源のうち接続網から最も近いものへ直線でつなぐ。線の途中で完全隠し資源に触れた場合は、その場で発見＋接続済みとして有効化する。点数をまだ入れていないため、得点ではなく距離だけで接続先を選ぶ。</p>
+      <p class="note">「点数/距離」は判明済み得点を距離で割って接続先を選ぶ。得点不明の資源は、その層の公開されている通常点分布の平均値で仮評価する。50ptが中層か下層かは事前には分からない前提。</p>
+    </section>
+
+    <section class="card distribution-card">
+      <h2>このランの埋蔵分布</h2>
+      <div id="distribution" class="distribution"></div>
+      <p class="note">ここでは検証用に、実際に生成された各層の「何ptが何枚」を全部表示する。プレイヤー向けUIでもこの程度まで公開可能という想定。</p>
     </section>
 
     <section class="card sample">
       <div class="sample-head">
         <div>
           <h2>1ラン例</h2>
-          <p>黒＝スプラッシュ、青線＝仮の筆。緑＝未発見、橙＝スプラッシュで発見、赤＝筆で接続、紫＝筆の途中で新発見＋接続。</p>
+          <p>黒＝スプラッシュ、青線＝筆。青系＝最初から得点まで公開、灰＝位置だけ公開、薄緑＝完全隠しの診断表示。橙＝スプラッシュ接触、赤/紫＝有効化。</p>
         </div>
         <button id="sampleBtn">描画更新</button>
       </div>
@@ -83,7 +105,7 @@
 
     <section class="card scope">
       <h2>この版で見るもの</h2>
-      <p><strong>スプラッシュだけでなく、筆経路による追加発見と最終有効化数まで。</strong> 現在の第一候補は240×420・資源40個・筆距離予算480。最終有効化は6〜10個程度を目安にし、10個固定にはしない。筆のインク換算、点数分布、見える／得点不明／完全隠しの割合はまだ仮置きしていない。</p>
+      <p><strong>240×420・資源40・8スプラッシュ・筆予算480を第一候補として、最終有効化6〜10個程度を維持しながら、近場安定／上層投資／50pt探索のどれか一択にならないかを見る。</strong> 点数値・情報比率・50ptはすべて検証用の仮置きで、本体ゲームにはまだ反映していない。</p>
     </section>
   </main>
   <script type="module" src="./ui.mjs"></script>
