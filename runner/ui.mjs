@@ -26,6 +26,10 @@ function readOptions() {
       countMode: $('resourceCountMode').value,
       scaleMode: 'auto',
     },
+    scoreModel: {
+      visibleRatio: 0.10,
+      knownRatio: 0.10,
+    },
     brush: {
       budget: Math.max(0, Number($('brushBudget').value || 480)),
       radius: Math.max(.25, Number($('brushRadius').value || 2)),
