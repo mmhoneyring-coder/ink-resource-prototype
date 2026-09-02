@@ -9,12 +9,20 @@
     homeRadius: 5,
     brushRadius: 2,
     brushMaxLength: 28,
+    zoom: {
+      min: 1,
+      max: 3,
+      step: .5,
+    },
     splash: {
-      mediumCount: [3, 5],
-      smallCount: [1, 5],
-      mediumRadius: [4, 7],
-      smallRadius: [1, 3],
-      spread: 18,
+      coreCount: [2, 4],
+      dropletCount: [9, 15],
+      speckCount: [12, 22],
+      coreRadius: [4, 6],
+      dropletRadius: [1.4, 2.8],
+      speckRadius: [.65, 1.35],
+      spread: 30,
+      farSpread: 42,
     },
     resources: {
       visible: 7,
@@ -33,6 +41,9 @@
   const splashBtn = document.getElementById('splashBtn');
   const brushBtn = document.getElementById('brushBtn');
   const newBtn = document.getElementById('newBtn');
+  const zoomInBtn = document.getElementById('zoomIn');
+  const zoomOutBtn = document.getElementById('zoomOut');
+  const zoomResetBtn = document.getElementById('zoomReset');
   const result = document.getElementById('result');
   const finalScore = document.getElementById('finalScore');
   const retryBtn = document.getElementById('retryBtn');
@@ -40,6 +51,7 @@
 
   const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
   const TAU = Math.PI * 2;
+  const TAP_MOVE_PX = 5;
 
   let mode = 'splash';
   let seed = randomSeed();
@@ -51,6 +63,11 @@
   let turns = CONFIG.turns;
   let drawing = null;
   let gameOver = false;
+  let pendingSplash = null;
+  let gesture = null;
+
+  const pointers = new Map();
+  const camera = { zoom: 1, tx: 0, ty: 0 };
 
   function randomSeed() {
     return (Math.random() * 0xffffffff) >>> 0;
@@ -91,36 +108,48 @@
     }
   }
 
-  function addBlob(cx, cy, baseRadius) {
-    // Several overlapping disks form one irregular island. Same radius can yield visibly different shapes.
+  function addBlob(cx, cy, baseRadius, lobes = [2, 5]) {
+    // Several overlapping disks form one irregular island.
     addDisk(cx, cy, baseRadius * rand(.72, .98));
-    const lobes = randInt(2, 5);
-    for (let i = 0; i < lobes; i++) {
+    const count = randInt(...lobes);
+    for (let i = 0; i < count; i++) {
       const angle = rand(0, TAU);
-      const dist = rand(baseRadius * .25, baseRadius * .8);
+      const dist = rand(baseRadius * .25, baseRadius * .85);
       addDisk(
         cx + Math.cos(angle) * dist,
         cy + Math.sin(angle) * dist,
-        baseRadius * rand(.35, .72)
+        baseRadius * rand(.32, .68)
       );
     }
   }
 
-  function splashAt(cx, cy) {
-    const medium = randInt(...CONFIG.splash.mediumCount);
-    const small = randInt(...CONFIG.splash.smallCount);
+  function splashPoint(cx, cy, minDistance, maxDistance) {
+    const angle = rand(0, TAU);
+    const distance = rand(minDistance, maxDistance);
+    return {
+      x: cx + Math.cos(angle) * distance,
+      y: cy + Math.sin(angle) * distance,
+    };
+  }
 
-    for (let i = 0; i < medium; i++) {
-      const angle = rand(0, TAU);
-      const distance = i === 0 ? rand(0, 4) : rand(3, CONFIG.splash.spread);
-      const r = rand(...CONFIG.splash.mediumRadius);
-      addBlob(cx + Math.cos(angle) * distance, cy + Math.sin(angle) * distance, r);
+  function splashAt(cx, cy) {
+    const core = randInt(...CONFIG.splash.coreCount);
+    const droplets = randInt(...CONFIG.splash.dropletCount);
+    const specks = randInt(...CONFIG.splash.speckCount);
+
+    // A few irregular cores keep the splash readable, while many smaller drops
+    // spread farther so one action feels more explosive and exploratory.
+    for (let i = 0; i < core; i++) {
+      const p = splashPoint(cx, cy, i === 0 ? 0 : 3, i === 0 ? 5 : CONFIG.splash.spread * .55);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius));
     }
-    for (let i = 0; i < small; i++) {
-      const angle = rand(0, TAU);
-      const distance = rand(8, CONFIG.splash.spread * 1.45);
-      const r = rand(...CONFIG.splash.smallRadius);
-      addBlob(cx + Math.cos(angle) * distance, cy + Math.sin(angle) * distance, r);
+    for (let i = 0; i < droplets; i++) {
+      const p = splashPoint(cx, cy, 6, CONFIG.splash.spread);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3]);
+    }
+    for (let i = 0; i < specks; i++) {
+      const p = splashPoint(cx, cy, 10, CONFIG.splash.farSpread);
+      addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius));
     }
 
     revealResources();
@@ -285,8 +314,8 @@
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
     hintEl.textContent = mode === 'splash'
-      ? 'スプラッシュする場所をタップ'
-      : `本拠地か接続済みインクから線を引く（最大 ${CONFIG.brushMaxLength}）`;
+      ? 'タップでスプラッシュ・2本指で拡大移動'
+      : `線を引く（最大 ${CONFIG.brushMaxLength}）・2本指で拡大移動`;
   }
 
   function resizeCanvas() {
@@ -295,6 +324,7 @@
     canvas.width = Math.max(1, Math.round(rect.width * dpr));
     canvas.height = Math.max(1, Math.round(rect.height * dpr));
     ctx.setTransform(dpr,0,0,dpr,0,0);
+    clampCamera();
     render();
   }
 
@@ -303,11 +333,47 @@
     return { w: rect.width, h: rect.height, sx: rect.width / CONFIG.cols, sy: rect.height / CONFIG.rows };
   }
 
+  function clampCamera() {
+    const m = boardMetrics();
+    const scaledW = m.w * camera.zoom;
+    const scaledH = m.h * camera.zoom;
+    camera.tx = scaledW <= m.w ? (m.w - scaledW) / 2 : clamp(camera.tx, m.w - scaledW, 0);
+    camera.ty = scaledH <= m.h ? (m.h - scaledH) / 2 : clamp(camera.ty, m.h - scaledH, 0);
+  }
+
+  function updateZoomLabel() {
+    zoomResetBtn.textContent = `${Math.round(camera.zoom * 100)}%`;
+    zoomOutBtn.disabled = camera.zoom <= CONFIG.zoom.min + .001;
+    zoomInBtn.disabled = camera.zoom >= CONFIG.zoom.max - .001;
+  }
+
+  function zoomTo(nextZoom, cx = boardWrap.clientWidth / 2, cy = boardWrap.clientHeight / 2) {
+    const zoom = clamp(nextZoom, CONFIG.zoom.min, CONFIG.zoom.max);
+    const wx = (cx - camera.tx) / camera.zoom;
+    const wy = (cy - camera.ty) / camera.zoom;
+    camera.zoom = zoom;
+    camera.tx = cx - wx * zoom;
+    camera.ty = cy - wy * zoom;
+    clampCamera();
+    updateZoomLabel();
+    render();
+  }
+
+  function resetCamera() {
+    camera.zoom = 1;
+    camera.tx = 0;
+    camera.ty = 0;
+    updateZoomLabel();
+    render();
+  }
+
   function pointerToCell(event) {
     const rect = canvas.getBoundingClientRect();
+    const localX = (event.clientX - rect.left - camera.tx) / camera.zoom;
+    const localY = (event.clientY - rect.top - camera.ty) / camera.zoom;
     return {
-      x: clamp(Math.floor((event.clientX - rect.left) / rect.width * CONFIG.cols), 0, CONFIG.cols - 1),
-      y: clamp(Math.floor((event.clientY - rect.top) / rect.height * CONFIG.rows), 0, CONFIG.rows - 1),
+      x: clamp(Math.floor(localX / rect.width * CONFIG.cols), 0, CONFIG.cols - 1),
+      y: clamp(Math.floor(localY / rect.height * CONFIG.rows), 0, CONFIG.rows - 1),
     };
   }
 
@@ -315,9 +381,12 @@
     const m = boardMetrics();
     ctx.clearRect(0,0,m.w,m.h);
 
-    // Subtle paper noise without external assets.
     ctx.fillStyle = '#f5efdf';
     ctx.fillRect(0,0,m.w,m.h);
+
+    ctx.save();
+    ctx.translate(camera.tx, camera.ty);
+    ctx.scale(camera.zoom, camera.zoom);
 
     // Ink cells. Connected ink is slightly darker so the usable network is readable.
     for (const k of ink) {
@@ -342,7 +411,7 @@
     ctx.translate((h.x+.5)*m.sx, (h.y+.5)*m.sy);
     ctx.fillStyle = '#fffaf0';
     ctx.strokeStyle = '#232220';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 / camera.zoom;
     ctx.beginPath();
     ctx.arc(0,0, Math.max(14, CONFIG.homeRadius*m.sx), 0, TAU);
     ctx.fill();
@@ -364,7 +433,7 @@
       ctx.translate(x,y);
       ctx.fillStyle = owned ? '#fff7cf' : '#fffdf7';
       ctx.strokeStyle = owned ? '#846d12' : '#4b463d';
-      ctx.lineWidth = owned ? 2.5 : 1.5;
+      ctx.lineWidth = (owned ? 2.5 : 1.5) / camera.zoom;
       ctx.beginPath();
       ctx.arc(0,0, owned ? 12 : 10, 0, TAU);
       ctx.fill();
@@ -376,6 +445,8 @@
       ctx.fillText(String(resource.value),0,.5);
       ctx.restore();
     }
+
+    ctx.restore();
   }
 
   function updateHud() {
@@ -394,6 +465,9 @@
     score = 0;
     turns = CONFIG.turns;
     drawing = null;
+    pendingSplash = null;
+    gesture = null;
+    pointers.clear();
     gameOver = false;
     result.hidden = true;
 
@@ -401,45 +475,128 @@
     addDisk(h.x, h.y, CONFIG.homeRadius);
     refreshConnected();
     updateHud();
+    resetCamera();
     setMode('splash');
+    render();
+  }
+
+  function beginTwoFingerGesture() {
+    const points = [...pointers.values()];
+    if (points.length !== 2) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (points[0].x + points[1].x) / 2 - rect.left;
+    const my = (points[0].y + points[1].y) / 2 - rect.top;
+    const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) || 1;
+
+    pendingSplash = null;
+    drawing = null;
+    gesture = {
+      distance,
+      zoom: camera.zoom,
+      wx: (mx - camera.tx) / camera.zoom,
+      wy: (my - camera.ty) / camera.zoom,
+    };
     render();
   }
 
   canvas.addEventListener('pointerdown', event => {
     if (gameOver) return;
+    canvas.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size === 2) {
+      beginTwoFingerGesture();
+      return;
+    }
+    if (pointers.size !== 1) return;
+
     const p = pointerToCell(event);
     if (mode === 'splash') {
-      splashAt(p.x,p.y);
+      pendingSplash = {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
       return;
     }
     if (!canStartBrush(p)) {
       hintEl.textContent = '筆は本拠地か、つながっているインクから開始';
       return;
     }
-    canvas.setPointerCapture(event.pointerId);
     drawing = { pointerId: event.pointerId, last: p, length: 0, cells: new Set() };
     stampBrush(p, drawing.cells);
     render();
   });
 
   canvas.addEventListener('pointermove', event => {
-    if (!drawing || drawing.pointerId !== event.pointerId) return;
-    extendBrush(pointerToCell(event));
-    render();
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size === 2 && gesture) {
+      const points = [...pointers.values()];
+      const rect = canvas.getBoundingClientRect();
+      const mx = (points[0].x + points[1].x) / 2 - rect.left;
+      const my = (points[0].y + points[1].y) / 2 - rect.top;
+      const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) || 1;
+      const zoom = clamp(gesture.zoom * distance / gesture.distance, CONFIG.zoom.min, CONFIG.zoom.max);
+
+      camera.zoom = zoom;
+      camera.tx = mx - gesture.wx * zoom;
+      camera.ty = my - gesture.wy * zoom;
+      clampCamera();
+      updateZoomLabel();
+      render();
+      return;
+    }
+
+    if (pointers.size !== 1) return;
+
+    if (pendingSplash && pendingSplash.pointerId === event.pointerId) {
+      const moved = Math.hypot(event.clientX - pendingSplash.clientX, event.clientY - pendingSplash.clientY);
+      if (moved > TAP_MOVE_PX) pendingSplash = null;
+    }
+
+    if (drawing && drawing.pointerId === event.pointerId) {
+      extendBrush(pointerToCell(event));
+      render();
+    }
   });
 
-  function endBrushPointer(event) {
-    if (!drawing || drawing.pointerId !== event.pointerId) return;
-    finishBrush();
+  function endPointer(event) {
+    const wasPendingSplash = pendingSplash && pendingSplash.pointerId === event.pointerId;
+    const shouldFinishBrush = drawing && drawing.pointerId === event.pointerId;
+
+    pointers.delete(event.pointerId);
+
+    if (wasPendingSplash && !gesture && pointers.size === 0) {
+      const p = pointerToCell(event);
+      pendingSplash = null;
+      splashAt(p.x, p.y);
+    } else if (wasPendingSplash) {
+      pendingSplash = null;
+    }
+
+    if (shouldFinishBrush && !gesture) finishBrush();
+    if (pointers.size < 2) gesture = null;
   }
-  canvas.addEventListener('pointerup', endBrushPointer);
-  canvas.addEventListener('pointercancel', () => { drawing = null; render(); });
+
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', event => {
+    pointers.delete(event.pointerId);
+    pendingSplash = null;
+    if (drawing && drawing.pointerId === event.pointerId) drawing = null;
+    if (pointers.size < 2) gesture = null;
+    render();
+  });
 
   splashBtn.addEventListener('click', () => setMode('splash'));
   brushBtn.addEventListener('click', () => setMode('brush'));
   newBtn.addEventListener('click', () => reset(false));
   retryBtn.addEventListener('click', () => reset(true));
   nextBtn.addEventListener('click', () => reset(false));
+  zoomInBtn.addEventListener('click', () => zoomTo(camera.zoom + CONFIG.zoom.step));
+  zoomOutBtn.addEventListener('click', () => zoomTo(camera.zoom - CONFIG.zoom.step));
+  zoomResetBtn.addEventListener('click', resetCamera);
   window.addEventListener('resize', resizeCanvas);
 
   requestAnimationFrame(() => {
