@@ -19,11 +19,15 @@
       <div class="stat compact"><span>取得</span><strong id="ownedCount">0</strong></div>
     </header>
 
-    <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
+    <section class="board-wrap" id="boardWrap" aria-label="横長ゲーム盤面">
       <canvas id="board" width="720" height="1120"></canvas>
+
+      <button id="viewLeft" class="pan-button pan-left" type="button" aria-label="盤面を左へ見る">‹</button>
+      <button id="viewRight" class="pan-button pan-right" type="button" aria-label="盤面を右へ見る">›</button>
+
       <div class="zoom-tools" aria-label="表示範囲">
         <button id="zoomOut" type="button" aria-label="広く見る">−</button>
-        <button id="zoomReset" type="button" aria-label="標準表示に戻す">65%</button>
+        <button id="zoomReset" type="button" aria-label="標準表示に戻す">100%</button>
         <button id="zoomIn" type="button" aria-label="近く見る">＋</button>
         <button id="distributionBtn" type="button" aria-label="埋蔵分布を見る">分布</button>
         <button id="refreshBtn" type="button" aria-label="ページを更新" onclick="window.location.reload()">更新</button>
@@ -37,13 +41,13 @@
         <div id="distributionContent"></div>
       </div>
 
-      <div class="hint" id="hint">狙いにはブレあり・1回8インク・2本指で縮小/移動</div>
+      <div class="hint" id="hint">大きいスプラッシュ 残り3回・1回15インク</div>
     </section>
 
     <nav class="actions" aria-label="行動選択">
       <button id="splashBtn" class="action active" type="button">
         <span class="action-icon">✦</span>
-        <span>スプラッシュ <small class="action-cost">8</small></span>
+        <span>スプラッシュ <small id="splashLeft" class="action-cost">3回</small></span>
       </button>
       <button id="brushBtn" class="action" type="button">
         <span class="action-icon">╱</span>
