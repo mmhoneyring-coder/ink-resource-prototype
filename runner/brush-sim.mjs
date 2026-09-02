@@ -1,7 +1,7 @@
 import { BOARD_PRESETS, simulateExploration } from './sim-core.mjs';
 
 export const DEFAULT_BRUSH = Object.freeze({
-  budget: 240,
+  budget: 480,
   radius: 2,
   startY: 0.78,
 });
@@ -118,8 +118,6 @@ export function simulateBrushRun(options = {}) {
     const choice = chooseNearestRevealed(resources, home, segments);
     if (!choice) break;
 
-    // If a revealed resource already touches the connected brush network,
-    // it is effectively activatable without spending meaningful extra length.
     if (choice.distance <= choice.resource.radius + brushRadius) {
       choice.resource.activated = true;
       activations++;
@@ -149,7 +147,6 @@ export function simulateBrushRun(options = {}) {
 
     if (travel + 1e-6 < fullDistance) break;
 
-    // Numerical fallback: reaching the chosen center must activate it.
     if (!choice.resource.activated) {
       choice.resource.activated = true;
       activations++;
