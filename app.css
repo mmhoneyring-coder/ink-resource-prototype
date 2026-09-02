@@ -75,7 +75,7 @@ button { font: inherit; }
   right: 6px;
   z-index: 2;
   display: grid;
-  grid-template-columns: 34px 52px 34px;
+  grid-template-columns: 34px 52px 34px 42px;
   gap: 3px;
   padding: 3px;
   border: 1px solid rgba(47,43,35,.14);
@@ -97,6 +97,7 @@ button { font: inherit; }
 .zoom-tools button:disabled { opacity: .32; }
 #zoomReset { font-size: 11px; font-variant-numeric: tabular-nums; }
 #zoomIn, #zoomOut { font-size: 20px; line-height: 1; }
+#refreshBtn { font-size: 10px; }
 
 .hint {
   position: absolute;
