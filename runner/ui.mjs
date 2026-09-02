@@ -11,25 +11,35 @@ function readOptions() {
     strategy: $('strategy').value,
     cols: Math.max(40, Number($('cols').value || 180)),
     rows: Math.max(60, Number($('rows').value || 280)),
+    resources: {
+      count: Math.max(1, Number($('resourceCount').value || 30)),
+      baseRadius: Math.max(.5, Number($('resourceRadius').value || 3)),
+      countMode: $('resourceCountMode').value,
+      scaleMode: $('resourceScaleMode').value,
+    },
   };
 }
 
 function pct(v) {
-  return `${(v * 100).toFixed(2)}%`;
+  return `${(v * 100).toFixed(1)}%`;
 }
 
 function renderResults(rows) {
   $('results').innerHTML = rows.map(r => `
     <tr>
       <td>${r.cols}×${r.rows}</td>
+      <td>${r.resourceCount}</td>
+      <td>${r.resourceScale.toFixed(2)}×</td>
+      <td>${r.meanResourceRadius.toFixed(1)}</td>
       <td>${pct(r.meanCoverage)}</td>
-      <td>${pct(r.p10Coverage)}</td>
-      <td>${pct(r.p50Coverage)}</td>
-      <td>${pct(r.p90Coverage)}</td>
-      <td>${pct(r.meanUpper)}</td>
-      <td>${pct(r.meanMiddle)}</td>
-      <td>${pct(r.meanLower)}</td>
-      <td>${r.meanInkCells.toFixed(0)}</td>
+      <td>${pct(r.meanHitRate)}</td>
+      <td>${r.meanHitCount.toFixed(1)}</td>
+      <td>${pct(r.p10HitRate)}</td>
+      <td>${pct(r.p50HitRate)}</td>
+      <td>${pct(r.p90HitRate)}</td>
+      <td>${pct(r.meanResourceUpper)}</td>
+      <td>${pct(r.meanResourceMiddle)}</td>
+      <td>${pct(r.meanResourceLower)}</td>
     </tr>`).join('');
 }
 
@@ -47,7 +57,7 @@ async function run(kind) {
       ? compareBoards(options, BOARD_PRESETS)
       : [runExplorationBatch(options)];
     renderResults(rows);
-    $('status').textContent = `${options.trials}試行 × ${options.splashes}スプラッシュ 完了`;
+    $('status').textContent = `${options.trials}試行 × ${options.splashes}スプラッシュ / 資源基準${options.resources.count}個`;
   } catch (error) {
     console.error(error);
     $('status').textContent = `エラー: ${error.message}`;
@@ -58,7 +68,7 @@ async function run(kind) {
 
 function drawSample() {
   const options = readOptions();
-  const result = simulateExploration({ ...options, returnInk: true });
+  const result = simulateExploration({ ...options, returnInk: true, returnResources: true });
   const canvas = $('sampleCanvas');
   const ctx = canvas.getContext('2d');
   const maxW = 720;
@@ -87,7 +97,17 @@ function drawSample() {
     }
   }
 
-  $('status').textContent = `1ラン: 全体 ${pct(result.coverage)} / 上 ${pct(result.upper)} / 中 ${pct(result.middle)} / 下 ${pct(result.lower)}`;
+  for (const resource of result.resources) {
+    ctx.beginPath();
+    ctx.arc(resource.x * scale, resource.y * scale, Math.max(2, resource.radius * scale), 0, Math.PI * 2);
+    ctx.fillStyle = resource.hit ? 'rgba(194,77,47,.92)' : 'rgba(56,120,100,.82)';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(35,32,28,.7)';
+    ctx.stroke();
+  }
+
+  $('status').textContent = `1ラン: 面積 ${pct(result.coverage)} / 資源 ${result.hitCount}/${result.resourceCount} (${pct(result.hitRate)}) / 半径倍率 ${result.resourceScale.toFixed(2)}×`;
 }
 
 $('compareBtn').addEventListener('click', () => run('compare'));
