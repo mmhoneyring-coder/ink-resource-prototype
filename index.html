@@ -15,8 +15,8 @@
   <main class="app-shell">
     <header class="hud">
       <div class="stat"><span>得点</span><strong id="score">0</strong></div>
-      <div class="stat"><span>残り</span><strong id="turns">24</strong></div>
-      <div class="stat compact"><span>発見</span><strong id="found">0/0</strong></div>
+      <div class="stat"><span>インク</span><strong id="inkRemaining">100</strong></div>
+      <div class="stat compact"><span>取得</span><strong id="ownedCount">0</strong></div>
     </header>
 
     <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
@@ -25,19 +25,29 @@
         <button id="zoomOut" type="button" aria-label="広く見る">−</button>
         <button id="zoomReset" type="button" aria-label="標準表示に戻す">65%</button>
         <button id="zoomIn" type="button" aria-label="近く見る">＋</button>
+        <button id="distributionBtn" type="button" aria-label="埋蔵分布を見る">分布</button>
         <button id="refreshBtn" type="button" aria-label="ページを更新" onclick="window.location.reload()">更新</button>
       </div>
-      <div class="hint" id="hint">狙いにはブレあり・2本指で縮小/移動</div>
+
+      <div class="distribution-panel" id="distributionPanel" hidden>
+        <div class="distribution-head">
+          <strong>公開されている埋蔵分布</strong>
+          <button id="distributionClose" type="button" aria-label="閉じる">×</button>
+        </div>
+        <div id="distributionContent"></div>
+      </div>
+
+      <div class="hint" id="hint">狙いにはブレあり・1回8インク・2本指で縮小/移動</div>
     </section>
 
     <nav class="actions" aria-label="行動選択">
       <button id="splashBtn" class="action active" type="button">
         <span class="action-icon">✦</span>
-        <span>スプラッシュ</span>
+        <span>スプラッシュ <small class="action-cost">8</small></span>
       </button>
       <button id="brushBtn" class="action" type="button">
         <span class="action-icon">╱</span>
-        <span>筆</span>
+        <span>筆 <small class="action-cost">長さで消費</small></span>
       </button>
       <button id="newBtn" class="subaction" type="button">新しい盤面</button>
     </nav>
@@ -46,6 +56,7 @@
       <div class="result-card">
         <p>今回の得点</p>
         <strong id="finalScore">0</strong>
+        <p class="result-sub">取得 <strong id="finalOwned">0</strong>個</p>
         <div class="result-actions">
           <button id="retryBtn" type="button">同じ盤面でもう一度</button>
           <button id="nextBtn" type="button">新しい盤面</button>
