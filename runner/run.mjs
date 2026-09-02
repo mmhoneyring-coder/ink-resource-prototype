@@ -14,7 +14,7 @@ function parseArgs(argv) {
 }
 
 function pct(v) {
-  return `${(v * 100).toFixed(2)}%`;
+  return `${(v * 100).toFixed(1)}%`;
 }
 
 function parseBoards(value) {
@@ -32,6 +32,12 @@ const options = {
   splashes: Number(args.splashes ?? 8),
   strategy: String(args.strategy ?? 'wide'),
   seed: Number(args.seed ?? 12345),
+  resources: {
+    count: Number(args.resources ?? 30),
+    baseRadius: Number(args.resourceRadius ?? 3),
+    countMode: String(args.resourceCountMode ?? 'fixed'),
+    scaleMode: String(args.resourceScaleMode ?? 'auto'),
+  },
 };
 
 let results;
@@ -47,17 +53,22 @@ if (args.json) {
 }
 
 console.log(`strategy=${options.strategy} splashes=${options.splashes} trials=${options.trials} seed=${options.seed}`);
-console.log('board\tcoverage\tp10\tp50\tp90\tupper\tmiddle\tlower\tmeanInk');
+console.log(`resources=${options.resources.count} countMode=${options.resources.countMode} radius=${options.resources.baseRadius} scaleMode=${options.resources.scaleMode}`);
+console.log('board\tresources\tscale\tradius\tcoverage\thitRate\thits\tp10\tp50\tp90\tupper\tmiddle\tlower');
 for (const r of results) {
   console.log([
     `${r.cols}x${r.rows}`,
+    r.resourceCount,
+    r.resourceScale.toFixed(2),
+    r.meanResourceRadius.toFixed(2),
     pct(r.meanCoverage),
-    pct(r.p10Coverage),
-    pct(r.p50Coverage),
-    pct(r.p90Coverage),
-    pct(r.meanUpper),
-    pct(r.meanMiddle),
-    pct(r.meanLower),
-    r.meanInkCells.toFixed(0),
+    pct(r.meanHitRate),
+    r.meanHitCount.toFixed(1),
+    pct(r.p10HitRate),
+    pct(r.p50HitRate),
+    pct(r.p90HitRate),
+    pct(r.meanResourceUpper),
+    pct(r.meanResourceMiddle),
+    pct(r.meanResourceLower),
   ].join('\t'));
 }
