@@ -7,9 +7,9 @@
   --panel: rgba(255, 252, 243, .94);
   --line: rgba(47, 43, 35, .18);
   --accent: #315f55;
-  --position: #527783;
-  --revealed: #c77912;
-  --acquired: #2f7d57;
+  --position: #60777c;
+  --revealed: #bd6428;
+  --acquired: #9b6811;
 }
 
 * { box-sizing: border-box; }
