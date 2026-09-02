@@ -3,7 +3,6 @@
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --paper: #f5efdf;
   --paper-deep: #e9dfc8;
-  --ink: #242424;
   --muted: #6d695f;
   --panel: rgba(255, 252, 243, .94);
   --line: rgba(47, 43, 35, .18);
@@ -43,7 +42,7 @@ button { font: inherit; }
   gap: 5px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
-  z-index: 3;
+  z-index: 5;
 }
 .stat { display: flex; align-items: baseline; justify-content: center; gap: 5px; }
 .stat span { font-size: 11px; color: var(--muted); }
@@ -54,11 +53,7 @@ button { font: inherit; }
   position: relative;
   min-height: 0;
   overflow: hidden;
-  background:
-    linear-gradient(rgba(115,100,70,.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(115,100,70,.025) 1px, transparent 1px),
-    var(--paper-deep);
-  background-size: 28px 28px, 31px 31px, auto;
+  background: var(--paper-deep);
   touch-action: none;
 }
 
@@ -73,7 +68,7 @@ button { font: inherit; }
   position: absolute;
   top: 6px;
   right: 6px;
-  z-index: 3;
+  z-index: 4;
   display: grid;
   grid-template-columns: 32px 50px 32px 40px 40px;
   gap: 3px;
@@ -99,11 +94,31 @@ button { font: inherit; }
 #zoomIn, #zoomOut { font-size: 20px; line-height: 1; }
 #refreshBtn, #distributionBtn { font-size: 10px; }
 
+.pan-button {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  width: 42px;
+  height: 76px;
+  margin-top: -38px;
+  border: 1px solid rgba(47,43,35,.12);
+  background: rgba(255,252,243,.74);
+  color: rgba(43,40,35,.86);
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: 0 3px 14px rgba(0,0,0,.10);
+  backdrop-filter: blur(5px);
+}
+.pan-button:disabled { opacity: .20; }
+.pan-left { left: 4px; border-radius: 0 14px 14px 0; }
+.pan-right { right: 4px; border-radius: 14px 0 0 14px; }
+
 .distribution-panel {
   position: absolute;
   top: 48px;
   right: 8px;
-  z-index: 4;
+  z-index: 6;
   width: min(360px, calc(100% - 16px));
   max-height: calc(100% - 90px);
   overflow: auto;
@@ -155,13 +170,14 @@ button { font: inherit; }
   position: absolute;
   left: 50%;
   bottom: 6px;
+  z-index: 4;
   transform: translateX(-50%);
-  max-width: calc(100% - 20px);
+  max-width: calc(100% - 100px);
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(255,255,255,.72);
+  background: rgba(255,255,255,.76);
   color: #4d493f;
-  font-size: 11px;
+  font-size: 10px;
   pointer-events: none;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0,0,0,.07);
@@ -216,7 +232,7 @@ button { font: inherit; }
 .result button { min-height: 44px; }
 
 @media (orientation: landscape) and (max-height: 650px) {
-  .app-shell { width: min(100%, 900px); grid-template-columns: 1fr 138px; grid-template-rows: auto 1fr; }
+  .app-shell { width: min(100%, 1000px); grid-template-columns: 1fr 138px; grid-template-rows: auto 1fr; }
   .hud { grid-column: 1 / -1; }
   .board-wrap { grid-column: 1; }
   .actions { grid-column: 2; grid-row: 2; grid-template-columns: 1fr; align-content: center; border-top: 0; border-left: 1px solid var(--line); }
