@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  // Prototype tuning values: intentionally centralized for quick iteration.
   const CONFIG = {
     turns: 24,
     cols: 90,
@@ -10,9 +9,11 @@
     brushRadius: 2,
     brushMaxLength: 28,
     zoom: {
-      min: 1,
-      max: 3,
-      step: .5,
+      fit: .65,
+      min: .65,
+      default: .75,
+      max: 1,
+      step: .1,
     },
     splash: {
       coreCount: [2, 4],
@@ -67,7 +68,7 @@
   let gesture = null;
 
   const pointers = new Map();
-  const camera = { zoom: 1, tx: 0, ty: 0 };
+  const camera = { zoom: CONFIG.zoom.default, tx: 0, ty: 0 };
 
   function randomSeed() {
     return (Math.random() * 0xffffffff) >>> 0;
@@ -109,7 +110,6 @@
   }
 
   function addBlob(cx, cy, baseRadius, lobes = [2, 5]) {
-    // Several overlapping disks form one irregular island.
     addDisk(cx, cy, baseRadius * rand(.72, .98));
     const count = randInt(...lobes);
     for (let i = 0; i < count; i++) {
@@ -137,8 +137,6 @@
     const droplets = randInt(...CONFIG.splash.dropletCount);
     const specks = randInt(...CONFIG.splash.speckCount);
 
-    // A few irregular cores keep the splash readable, while many smaller drops
-    // spread farther so one action feels more explosive and exploratory.
     for (let i = 0; i < core; i++) {
       const p = splashPoint(cx, cy, i === 0 ? 0 : 3, i === 0 ? 5 : CONFIG.splash.spread * .55);
       addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius));
@@ -281,7 +279,6 @@
   }
 
   function acquireByBrush() {
-    // Ownership is confirmed only as the result of a brush action.
     for (const resource of resources) {
       if (resource.owned || !resource.revealed) continue;
       const rk = key(resource.x, resource.y);
@@ -314,8 +311,8 @@
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
     hintEl.textContent = mode === 'splash'
-      ? 'タップでスプラッシュ・2本指で拡大移動'
-      : `線を引く（最大 ${CONFIG.brushMaxLength}）・2本指で拡大移動`;
+      ? 'タップでスプラッシュ・2本指で縮小/移動'
+      : `線を引く（最大 ${CONFIG.brushMaxLength}）・2本指で縮小/移動`;
   }
 
   function resizeCanvas() {
@@ -330,15 +327,31 @@
 
   function boardMetrics() {
     const rect = boardWrap.getBoundingClientRect();
-    return { w: rect.width, h: rect.height, sx: rect.width / CONFIG.cols, sy: rect.height / CONFIG.rows };
+    const worldW = rect.width / CONFIG.zoom.fit;
+    const worldH = rect.height / CONFIG.zoom.fit;
+    return {
+      w: rect.width,
+      h: rect.height,
+      worldW,
+      worldH,
+      sx: worldW / CONFIG.cols,
+      sy: worldH / CONFIG.rows,
+    };
   }
 
   function clampCamera() {
     const m = boardMetrics();
-    const scaledW = m.w * camera.zoom;
-    const scaledH = m.h * camera.zoom;
+    const scaledW = m.worldW * camera.zoom;
+    const scaledH = m.worldH * camera.zoom;
     camera.tx = scaledW <= m.w ? (m.w - scaledW) / 2 : clamp(camera.tx, m.w - scaledW, 0);
     camera.ty = scaledH <= m.h ? (m.h - scaledH) / 2 : clamp(camera.ty, m.h - scaledH, 0);
+  }
+
+  function centerCamera() {
+    const m = boardMetrics();
+    camera.tx = (m.w - m.worldW * camera.zoom) / 2;
+    camera.ty = (m.h - m.worldH * camera.zoom) / 2;
+    clampCamera();
   }
 
   function updateZoomLabel() {
@@ -360,20 +373,20 @@
   }
 
   function resetCamera() {
-    camera.zoom = 1;
-    camera.tx = 0;
-    camera.ty = 0;
+    camera.zoom = CONFIG.zoom.default;
+    centerCamera();
     updateZoomLabel();
     render();
   }
 
   function pointerToCell(event) {
     const rect = canvas.getBoundingClientRect();
+    const m = boardMetrics();
     const localX = (event.clientX - rect.left - camera.tx) / camera.zoom;
     const localY = (event.clientY - rect.top - camera.ty) / camera.zoom;
     return {
-      x: clamp(Math.floor(localX / rect.width * CONFIG.cols), 0, CONFIG.cols - 1),
-      y: clamp(Math.floor(localY / rect.height * CONFIG.rows), 0, CONFIG.rows - 1),
+      x: clamp(Math.floor(localX / m.worldW * CONFIG.cols), 0, CONFIG.cols - 1),
+      y: clamp(Math.floor(localY / m.worldH * CONFIG.rows), 0, CONFIG.rows - 1),
     };
   }
 
@@ -381,14 +394,16 @@
     const m = boardMetrics();
     ctx.clearRect(0,0,m.w,m.h);
 
-    ctx.fillStyle = '#f5efdf';
+    ctx.fillStyle = '#e9dfc8';
     ctx.fillRect(0,0,m.w,m.h);
 
     ctx.save();
     ctx.translate(camera.tx, camera.ty);
     ctx.scale(camera.zoom, camera.zoom);
 
-    // Ink cells. Connected ink is slightly darker so the usable network is readable.
+    ctx.fillStyle = '#f5efdf';
+    ctx.fillRect(0,0,m.worldW,m.worldH);
+
     for (const k of ink) {
       const p = parseKey(k);
       ctx.fillStyle = connected.has(k) ? '#22211f' : '#4e4b46';
@@ -405,7 +420,6 @@
       }
     }
 
-    // Home/start area.
     const h = home();
     ctx.save();
     ctx.translate((h.x+.5)*m.sx, (h.y+.5)*m.sy);
@@ -423,7 +437,6 @@
     ctx.fillText('START',0,0);
     ctx.restore();
 
-    // Resources are drawn as clean objects, not pixel art.
     for (const resource of resources) {
       if (!resource.revealed) continue;
       const x = (resource.x + .5) * m.sx;
