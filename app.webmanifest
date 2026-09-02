@@ -1,0 +1,9 @@
+{
+  "name": "Ink Resource Prototype",
+  "short_name": "Ink Resource",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5efdf",
+  "theme_color": "#f3eddc",
+  "lang": "ja"
+}
