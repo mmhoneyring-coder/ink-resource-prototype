@@ -9,8 +9,8 @@ export const FIXED_DECK = Object.freeze({
 export const FIXED_SIZE_MODEL = Object.freeze({
   treasureValue: 50,
   treasureRadius: 1.8,
-  visibleRatio: 0.20,
-  knownRatio: 0.20,
+  visibleRatio: 0.10,
+  knownRatio: 0.10,
   sizeBands: Object.freeze([
     Object.freeze({ max: 3, radius: 5.0 }),
     Object.freeze({ max: 6, radius: 4.3 }),
