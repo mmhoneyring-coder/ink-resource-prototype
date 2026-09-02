@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Ink Resource Balance Runner</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <h1>Ink Resource Balance Runner</h1>
+        <p>現在のスプラッシュ形状を使って、盤面サイズと探索率を大量試行する独立ランナー。</p>
+      </div>
+      <a href="../">ゲームへ</a>
+    </header>
+
+    <section class="controls card">
+      <label>試行数<input id="trials" type="number" min="1" max="10000" step="50" value="300"></label>
+      <label>スプラッシュ回数<input id="splashes" type="number" min="1" max="30" value="8"></label>
+      <label>Seed<input id="seed" type="number" min="0" step="1" value="12345"></label>
+      <label>狙い方
+        <select id="strategy">
+          <option value="wide">全体に広く</option>
+          <option value="upward">下から上へ進行</option>
+          <option value="lower">下層集中</option>
+          <option value="middle">中層集中</option>
+          <option value="upper">上層集中</option>
+          <option value="random">ランダム</option>
+        </select>
+      </label>
+      <button id="compareBtn" class="primary">4サイズ比較</button>
+      <button id="singleBtn">現在サイズだけ</button>
+    </section>
+
+    <section class="card custom">
+      <label>幅<input id="cols" type="number" min="80" max="600" value="180"></label>
+      <label>高さ<input id="rows" type="number" min="120" max="900" value="280"></label>
+      <div id="status">待機中</div>
+    </section>
+
+    <section class="card">
+      <h2>集計</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>盤面</th><th>全体</th><th>P10</th><th>P50</th><th>P90</th><th>上層</th><th>中層</th><th>下層</th><th>平均セル</th></tr>
+          </thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+      <p class="note">探索率＝インクが一度でも乗ったセル割合。資源が一様配置なら、隠し資源への平均命中率の目安になる。</p>
+    </section>
+
+    <section class="card sample">
+      <div class="sample-head">
+        <div>
+          <h2>1ラン例</h2>
+          <p>選択中の幅・高さ・戦略で1回だけ描画。</p>
+        </div>
+        <button id="sampleBtn">描画更新</button>
+      </div>
+      <canvas id="sampleCanvas" width="600" height="600"></canvas>
+    </section>
+
+    <section class="card scope">
+      <h2>この版で見るもの</h2>
+      <p><strong>現在は探索率専用。</strong> 点数分布・見える/得点不明/完全隠し・総インク・筆接続は、仕様確定後に同じランナーへ追加する。</p>
+    </section>
+  </main>
+  <script type="module" src="./ui.mjs"></script>
+</body>
+</html>
