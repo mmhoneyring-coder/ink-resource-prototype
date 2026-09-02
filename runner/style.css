@@ -6,7 +6,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; background: #eee9dc; }
 button, input, select { font: inherit; }
-.shell { width: min(1100px, 100%); margin: 0 auto; padding: 18px; }
+.shell { width: min(1180px, 100%); margin: 0 auto; padding: 18px; }
 header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
 h1 { font-size: clamp(22px, 4vw, 34px); margin: 0 0 6px; }
 h2 { margin: 0 0 12px; font-size: 18px; }
@@ -22,12 +22,16 @@ button:disabled { opacity: .55; cursor: wait; }
 .custom { display: grid; grid-template-columns: 160px 160px 1fr; gap: 10px; align-items: end; }
 #status { min-height: 42px; display: flex; align-items: center; padding: 0 10px; font-size: 13px; }
 .table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 760px; }
-th, td { padding: 9px 8px; border-bottom: 1px solid rgba(60,55,45,.12); text-align: right; font-variant-numeric: tabular-nums; }
-th:first-child, td:first-child { text-align: left; }
+table { width: 100%; border-collapse: collapse; min-width: 1180px; }
+th, td { padding: 9px 8px; border-bottom: 1px solid rgba(60,55,45,.12); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
 .note { margin-top: 10px; font-size: 13px; opacity: .72; }
+.distribution { display: grid; gap: 8px; }
+.distribution > div { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(60,55,45,.12); }
+.distribution span { font-variant-numeric: tabular-nums; line-height: 1.45; }
+.distribution p { margin-top: 4px; font-size: 13px; }
 .sample-head { display: flex; gap: 12px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-#sampleCanvas { display: block; width: 100%; max-height: 560px; background: #f7f3e8; border: 1px solid rgba(60,55,45,.18); border-radius: 10px; }
+#sampleCanvas { display: block; width: 100%; max-height: 680px; object-fit: contain; background: #f7f3e8; border: 1px solid rgba(60,55,45,.18); border-radius: 10px; }
 .scope strong { font-weight: 800; }
 @media (max-width: 760px) {
   .shell { padding: 12px; }
