@@ -3,11 +3,12 @@
 
   const CONFIG = {
     turns: 24,
-    cols: 90,
-    rows: 140,
-    homeRadius: 5,
+    cols: 180,
+    rows: 280,
+    homeRadius: 10,
     brushRadius: 2,
-    brushMaxLength: 28,
+    brushMaxLength: 56,
+    brushStartPadding: 6,
     zoom: {
       fit: .65,
       min: .65,
@@ -19,16 +20,17 @@
       coreCount: [2, 4],
       dropletCount: [9, 15],
       speckCount: [12, 22],
-      coreRadius: [4, 6],
-      dropletRadius: [1.4, 2.8],
-      speckRadius: [.65, 1.35],
-      spread: 30,
-      farSpread: 42,
+      coreRadius: [8, 12],
+      dropletRadius: [2.8, 5.6],
+      speckRadius: [1.3, 2.7],
+      spread: 60,
+      farSpread: 84,
+      minIslandArea: 12,
     },
     resources: {
       visible: 7,
       hidden: 15,
-      minHomeDistance: 18,
+      minHomeDistance: 36,
     },
   };
 
@@ -90,7 +92,7 @@
   function parseKey(k) { const [x,y] = k.split(',').map(Number); return {x,y}; }
 
   function home() {
-    return { x: Math.floor(CONFIG.cols / 2), y: CONFIG.rows - 10 };
+    return { x: Math.floor(CONFIG.cols / 2), y: CONFIG.rows - 20 };
   }
 
   function inBounds(x, y) {
@@ -109,8 +111,8 @@
     }
   }
 
-  function addBlob(cx, cy, baseRadius, lobes = [2, 5]) {
-    addDisk(cx, cy, baseRadius * rand(.72, .98));
+  function addBlob(cx, cy, baseRadius, lobes = [2, 5], target = ink) {
+    addDisk(cx, cy, baseRadius * rand(.72, .98), target);
     const count = randInt(...lobes);
     for (let i = 0; i < count; i++) {
       const angle = rand(0, TAU);
@@ -118,7 +120,8 @@
       addDisk(
         cx + Math.cos(angle) * dist,
         cy + Math.sin(angle) * dist,
-        baseRadius * rand(.32, .68)
+        baseRadius * rand(.32, .68),
+        target
       );
     }
   }
@@ -132,23 +135,54 @@
     };
   }
 
+  function pruneSmallIslands(target, minArea) {
+    const visited = new Set();
+    for (const start of target) {
+      if (visited.has(start)) continue;
+      const queue = [start];
+      const component = [];
+      let touchesExistingInk = false;
+      visited.add(start);
+      for (let i = 0; i < queue.length; i++) {
+        const current = queue[i];
+        component.push(current);
+        if (ink.has(current)) touchesExistingInk = true;
+        const p = parseKey(current);
+        for (const [dx, dy] of neighbors) {
+          const next = key(p.x + dx, p.y + dy);
+          if (ink.has(next)) touchesExistingInk = true;
+          if (!target.has(next) || visited.has(next)) continue;
+          visited.add(next);
+          queue.push(next);
+        }
+      }
+      if (component.length < minArea && !touchesExistingInk) {
+        for (const k of component) target.delete(k);
+      }
+    }
+  }
+
   function splashAt(cx, cy) {
+    const splashInk = new Set();
     const core = randInt(...CONFIG.splash.coreCount);
     const droplets = randInt(...CONFIG.splash.dropletCount);
     const specks = randInt(...CONFIG.splash.speckCount);
 
     for (let i = 0; i < core; i++) {
-      const p = splashPoint(cx, cy, i === 0 ? 0 : 3, i === 0 ? 5 : CONFIG.splash.spread * .55);
-      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius));
+      const p = splashPoint(cx, cy, i === 0 ? 0 : 6, i === 0 ? 10 : CONFIG.splash.spread * .55);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
     }
     for (let i = 0; i < droplets; i++) {
-      const p = splashPoint(cx, cy, 6, CONFIG.splash.spread);
-      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3]);
+      const p = splashPoint(cx, cy, 12, CONFIG.splash.spread);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
     }
     for (let i = 0; i < specks; i++) {
-      const p = splashPoint(cx, cy, 10, CONFIG.splash.farSpread);
-      addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius));
+      const p = splashPoint(cx, cy, 20, CONFIG.splash.farSpread);
+      addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius), splashInk);
     }
+
+    pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
+    for (const k of splashInk) ink.add(k);
 
     revealResources();
     refreshConnected();
@@ -171,12 +205,12 @@
     for (let i = 0; i < total; i++) {
       let x, y, tries = 0;
       do {
-        x = randInt(5, CONFIG.cols - 6);
-        y = randInt(6, CONFIG.rows - 18);
+        x = randInt(10, CONFIG.cols - 12);
+        y = randInt(12, CONFIG.rows - 36);
         tries++;
       } while (tries < 200 && (
         Math.hypot(x - h.x, y - h.y) < CONFIG.resources.minHomeDistance ||
-        list.some(r => Math.hypot(x - r.x, y - r.y) < 7)
+        list.some(r => Math.hypot(x - r.x, y - r.y) < 14)
       ));
       const hidden = i >= CONFIG.resources.visible;
       list.push({
@@ -203,7 +237,7 @@
     const active = new Set();
     for (const k of ink) {
       const p = parseKey(k);
-      if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + 1.5) {
+      if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + 3) {
         active.add(k);
         start.push(k);
       }
@@ -222,9 +256,9 @@
 
   function canStartBrush(p) {
     const h = home();
-    if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + CONFIG.brushRadius + 2) return true;
-    for (let yy = p.y - 3; yy <= p.y + 3; yy++) {
-      for (let xx = p.x - 3; xx <= p.x + 3; xx++) {
+    if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + CONFIG.brushRadius + CONFIG.brushStartPadding) return true;
+    for (let yy = p.y - CONFIG.brushStartPadding; yy <= p.y + CONFIG.brushStartPadding; yy++) {
+      for (let xx = p.x - CONFIG.brushStartPadding; xx <= p.x + CONFIG.brushStartPadding; xx++) {
         if (connected.has(key(xx,yy))) return true;
       }
     }
