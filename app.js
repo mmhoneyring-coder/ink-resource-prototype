@@ -1,14 +1,13 @@
 (() => {
   'use strict';
 
-  // Provisional play-test: sparse coins, three large splashes, horizontal world.
+  // Provisional play-test: sparse coins, cost-limited splashes, shorter horizontal world.
   const CONFIG = {
-    cols: 720,
+    cols: 420,
     rows: 450,
     totalInk: 100,
-    maxSplashes: 3,
     splashInkCost: 15,
-    brushInkPerCell: 0.115, // 3 splashes leave ~55 ink ≒ 478 cells of brush.
+    brushInkPerCell: 0.115,
     homeRadius: 10,
     homeY: 0.80,
     brushRadius: 3,
@@ -65,10 +64,11 @@
   const COLORS = {
     position: '#60777c',
     positionSoft: 'rgba(96,119,124,.30)',
-    partial: '#b99c63',
-    partialTreasure: '#b99c63',
-    revealed: '#bd6428',
-    revealedDark: '#8a431e',
+    partial: '#60777c',
+    partialTreasure: '#60777c',
+    revealed: '#60777c',
+    revealedDark: '#344c51',
+    revealedText: '#fffaf0',
     acquired: '#f0c64f',
     acquiredDark: '#79500f',
     coin: '#f0c64f',
@@ -85,6 +85,7 @@
   const splashBtn = document.getElementById('splashBtn');
   const splashLeftEl = document.getElementById('splashLeft');
   const brushBtn = document.getElementById('brushBtn');
+  const moveBtn = document.getElementById('moveBtn');
   const newBtn = document.getElementById('newBtn');
   const zoomInBtn = document.getElementById('zoomIn');
   const zoomOutBtn = document.getElementById('zoomOut');
@@ -109,8 +110,8 @@
   let resources = [];
   let score = 0;
   let inkRemaining = CONFIG.totalInk;
-  let splashesUsed = 0;
   let drawing = null;
+  let moveDrag = null;
   let gameOver = false;
   let pendingSplash = null;
   let gesture = null;
@@ -226,11 +227,6 @@
 
   function splashAt(cx, cy) {
     if (gameOver) return;
-    if (splashesUsed >= CONFIG.maxSplashes) {
-      hintEl.textContent = 'スプラッシュは3回使い切った。筆で仕上げる';
-      setMode('brush');
-      return;
-    }
     if (inkRemaining + 1e-9 < CONFIG.splashInkCost) {
       hintEl.textContent = 'スプラッシュ分のインクがないので、筆で使い切る';
       setMode('brush');
@@ -264,12 +260,9 @@
     pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
     for (const k of splashInk) ink.add(k);
 
-    splashesUsed++;
     refreshConnected();
     updateResources();
     spendInk(CONFIG.splashInkCost);
-
-    if (splashesUsed >= CONFIG.maxSplashes && !gameOver) setMode('brush');
   }
 
   function placeResource(list, band, value, size, id, isTreasure = false) {
@@ -552,19 +545,24 @@
 
   function setMode(next) {
     if (gameOver) return;
-    const splashUnavailable = splashesUsed >= CONFIG.maxSplashes || inkRemaining + 1e-9 < CONFIG.splashInkCost;
+    const splashUnavailable = inkRemaining + 1e-9 < CONFIG.splashInkCost;
     if (next === 'splash' && splashUnavailable) {
       mode = 'brush';
     } else {
       mode = next;
     }
 
-    hintEl.textContent = mode === 'splash'
-      ? `大きいスプラッシュ 残り${CONFIG.maxSplashes - splashesUsed}回・1回${CONFIG.splashInkCost}インク`
-      : `筆はSTART/接続インクから・橙=点数判明、金=取得`;
+    if (mode === 'splash') {
+      hintEl.textContent = `スプラッシュ 1回${CONFIG.splashInkCost}インク・残りインクで使用`;
+    } else if (mode === 'brush') {
+      hintEl.textContent = '筆はSTARTか、つながっているインクから開始';
+    } else {
+      hintEl.textContent = 'ドラッグで盤面を移動・2本指で拡大/縮小';
+    }
 
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
+    moveBtn.classList.toggle('active', mode === 'move');
     updateActionAvailability();
   }
 
@@ -701,21 +699,6 @@
     ctx.setLineDash([]);
   }
 
-  function drawStatusPill(text, y, background, foreground) {
-    const fontSize = 9 / camera.zoom;
-    ctx.font = `800 ${fontSize}px system-ui`;
-    const width = ctx.measureText(text).width + 12 / camera.zoom;
-    const height = 15 / camera.zoom;
-    ctx.fillStyle = background;
-    ctx.beginPath();
-    ctx.roundRect(-width / 2, y, width, height, 7 / camera.zoom);
-    ctx.fill();
-    ctx.fillStyle = foreground;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, 0, y + height / 2 + .2 / camera.zoom);
-  }
-
   function renderPositionMarker(resource, m) {
     if (!resource.initiallyKnown || resource.coverage > 0 || resource.owned) return;
     const x = (resource.x + .5) * m.sx;
@@ -809,14 +792,8 @@
     if (resource.scoreKnown) {
       ctx.save();
       ctx.translate(x,y);
-      ctx.strokeStyle = COLORS.revealed;
-      ctx.lineWidth = 2.1 / camera.zoom;
-      ctx.beginPath();
-      ctx.arc(0,0,radius + 2 / camera.zoom,0,TAU);
-      ctx.stroke();
-
-      ctx.fillStyle = COLORS.revealed;
-      ctx.strokeStyle = 'rgba(255,248,229,.94)';
+      ctx.fillStyle = COLORS.revealedText;
+      ctx.strokeStyle = COLORS.revealedDark;
       ctx.lineWidth = 3 / camera.zoom;
       ctx.font = `850 ${clamp(radius * .56, 11 / camera.zoom, 20 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
@@ -830,8 +807,8 @@
   function renderFeedback(m) {
     if (!feedback) return;
     const acquired = feedback.type === 'acquired';
-    const bg = acquired ? COLORS.acquired : COLORS.revealed;
-    const fg = acquired ? COLORS.acquiredDark : '#fff';
+    const bg = acquired ? COLORS.acquired : COLORS.revealedDark;
+    const fg = acquired ? COLORS.acquiredDark : COLORS.revealedText;
     const title = feedback.title;
     const detail = feedback.detail;
     const centerX = m.w / 2;
@@ -923,15 +900,18 @@
   }
 
   function updateActionAvailability() {
-    const noSplash = splashesUsed >= CONFIG.maxSplashes || inkRemaining + 1e-9 < CONFIG.splashInkCost;
+    const noSplash = inkRemaining + 1e-9 < CONFIG.splashInkCost;
     splashBtn.disabled = gameOver || noSplash;
     brushBtn.disabled = gameOver || inkRemaining <= 0;
-    splashLeftEl.textContent = `${Math.max(0, CONFIG.maxSplashes - splashesUsed)}回`;
+    moveBtn.disabled = gameOver;
+    splashLeftEl.textContent = `${CONFIG.splashInkCost} ink`;
 
     if (splashBtn.disabled && mode === 'splash' && !gameOver) {
       mode = 'brush';
       splashBtn.classList.remove('active');
       brushBtn.classList.add('active');
+      moveBtn.classList.remove('active');
+      hintEl.textContent = '筆はSTARTか、つながっているインクから開始';
     }
   }
 
@@ -959,7 +939,7 @@
         <strong>特別埋蔵</strong>
         <span>50×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。橙は点数判明、金は取得済み。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。青灰はインクが当たった部分、白い数字は点数判明、金は取得済み。</p>`;
   }
 
   function reset(useSameSeed) {
@@ -970,8 +950,8 @@
     resources = createResources();
     score = 0;
     inkRemaining = CONFIG.totalInk;
-    splashesUsed = 0;
     drawing = null;
+    moveDrag = null;
     pendingSplash = null;
     gesture = null;
     pointers.clear();
@@ -1003,6 +983,7 @@
 
     pendingSplash = null;
     drawing = null;
+    moveDrag = null;
     gesture = {
       distance,
       zoom: camera.zoom,
@@ -1023,6 +1004,17 @@
       return;
     }
     if (pointers.size !== 1) return;
+
+    if (mode === 'move') {
+      moveDrag = {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        tx: camera.tx,
+        ty: camera.ty,
+      };
+      return;
+    }
 
     const p = pointerToCell(event);
     if (mode === 'splash') {
@@ -1066,6 +1058,14 @@
 
     if (pointers.size !== 1) return;
 
+    if (moveDrag && moveDrag.pointerId === event.pointerId) {
+      camera.tx = moveDrag.tx + (event.clientX - moveDrag.clientX);
+      camera.ty = moveDrag.ty + (event.clientY - moveDrag.clientY);
+      clampCamera();
+      render();
+      return;
+    }
+
     if (pendingSplash && pendingSplash.pointerId === event.pointerId) {
       const moved = Math.hypot(event.clientX - pendingSplash.clientX, event.clientY - pendingSplash.clientY);
       if (moved > TAP_MOVE_PX) pendingSplash = null;
@@ -1080,6 +1080,7 @@
   function endPointer(event) {
     const wasPendingSplash = pendingSplash && pendingSplash.pointerId === event.pointerId;
     const shouldFinishBrush = drawing && drawing.pointerId === event.pointerId;
+    const shouldFinishMove = moveDrag && moveDrag.pointerId === event.pointerId;
 
     pointers.delete(event.pointerId);
 
@@ -1092,6 +1093,7 @@
     }
 
     if (shouldFinishBrush && !gesture) finishBrush();
+    if (shouldFinishMove) moveDrag = null;
     if (pointers.size < 2) gesture = null;
   }
 
@@ -1100,6 +1102,7 @@
     pointers.delete(event.pointerId);
     pendingSplash = null;
     if (drawing && drawing.pointerId === event.pointerId) drawing = null;
+    if (moveDrag && moveDrag.pointerId === event.pointerId) moveDrag = null;
     if (pointers.size < 2) gesture = null;
     updateHud();
     render();
@@ -1107,6 +1110,7 @@
 
   splashBtn.addEventListener('click', () => setMode('splash'));
   brushBtn.addEventListener('click', () => setMode('brush'));
+  moveBtn.addEventListener('click', () => setMode('move'));
   newBtn.addEventListener('click', () => reset(false));
   retryBtn.addEventListener('click', () => reset(true));
   nextBtn.addEventListener('click', () => reset(false));
