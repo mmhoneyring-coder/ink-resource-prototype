@@ -26,16 +26,23 @@
     panHoldDelay: 260,
     panHoldEvery: 55,
     splash: {
-      coreCount: [3, 5],
-      dropletCount: [10, 16],
-      speckCount: [6, 10],
-      coreRadius: [20, 30],
-      dropletRadius: [6, 12],
+      coreCount: [4, 6],
+      dropletCount: [10, 15],
+      speckCount: [8, 12],
+      coreRadius: [15, 22],
+      dropletRadius: [7, 12],
       speckRadius: [3, 6],
-      spread: 120,
-      farSpread: 165,
-      aimDrift: [12, 30],
-      minIslandArea: 42,
+      spread: 125,
+      farSpread: 170,
+      aimDrift: [12, 32],
+      minIslandArea: 38,
+      radialDirections: [2, 3],
+      radialJitter: 1.0,
+      radialBias: {
+        core: 0.40,
+        droplet: 0.50,
+        speck: 0.58,
+      },
     },
     resources: {
       minHomeDistance: 34,
@@ -48,9 +55,9 @@
         lower: [3, 5, 8],
       },
       sizes: [
-        { name: 'small', radius: 13 },
-        { name: 'medium', radius: 19 },
-        { name: 'large', radius: 27 },
+        { name: 'small', radius: 9 },
+        { name: 'medium', radius: 14 },
+        { name: 'large', radius: 19 },
       ],
     },
   };
@@ -198,6 +205,36 @@
     };
   }
 
+  function createSplashDirections() {
+    const count = randInt(...CONFIG.splash.radialDirections);
+    const directions = [];
+    for (let i = 0; i < count; i++) {
+      let angle = rand(0, TAU);
+      for (let tries = 0; tries < 6; tries++) {
+        const tooClose = directions.some(existing => {
+          const diff = Math.atan2(Math.sin(angle - existing), Math.cos(angle - existing));
+          return Math.abs(diff) < .70;
+        });
+        if (!tooClose) break;
+        angle = rand(0, TAU);
+      }
+      directions.push(angle);
+    }
+    return directions;
+  }
+
+  function splashPointBiased(cx, cy, minDistance, maxDistance, directions, bias) {
+    const useBias = directions.length > 0 && rng() < bias;
+    const angle = useBias
+      ? directions[randInt(0, directions.length - 1)] + rand(-CONFIG.splash.radialJitter, CONFIG.splash.radialJitter)
+      : rand(0, TAU);
+    const distance = rand(minDistance, maxDistance);
+    return {
+      x: cx + Math.cos(angle) * distance,
+      y: cy + Math.sin(angle) * distance,
+    };
+  }
+
   function pruneSmallIslands(target, minArea) {
     const visited = new Set();
     for (const start of target) {
@@ -238,22 +275,39 @@
     const droplets = randInt(...CONFIG.splash.dropletCount);
     const specks = randInt(...CONFIG.splash.speckCount);
     const impact = splashPoint(cx, cy, ...CONFIG.splash.aimDrift);
+    const directions = createSplashDirections();
 
     for (let i = 0; i < core; i++) {
-      const p = splashPoint(
+      const p = splashPointBiased(
         impact.x,
         impact.y,
         i === 0 ? 4 : 12,
-        i === 0 ? 24 : CONFIG.splash.spread * .55
+        i === 0 ? 28 : CONFIG.splash.spread * .58,
+        directions,
+        CONFIG.splash.radialBias.core
       );
       addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
     }
     for (let i = 0; i < droplets; i++) {
-      const p = splashPoint(impact.x, impact.y, 20, CONFIG.splash.spread);
+      const p = splashPointBiased(
+        impact.x,
+        impact.y,
+        20,
+        CONFIG.splash.spread,
+        directions,
+        CONFIG.splash.radialBias.droplet
+      );
       addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
     }
     for (let i = 0; i < specks; i++) {
-      const p = splashPoint(impact.x, impact.y, 30, CONFIG.splash.farSpread);
+      const p = splashPointBiased(
+        impact.x,
+        impact.y,
+        30,
+        CONFIG.splash.farSpread,
+        directions,
+        CONFIG.splash.radialBias.speck
+      );
       addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius), splashInk);
     }
 
