@@ -63,16 +63,16 @@
   const TAP_MOVE_PX = 5;
   const MIN_ACTION_INK = .05;
   const COLORS = {
-    position: '#527783',
-    positionSoft: 'rgba(82,119,131,.72)',
-    partial: '#d8bd74',
-    partialTreasure: '#e8bd4f',
-    revealed: '#c77912',
-    revealedDark: '#714609',
-    acquired: '#2f7d57',
-    acquiredDark: '#18573a',
-    coin: '#f3dfa0',
-    treasure: '#ffd968',
+    position: '#60777c',
+    positionSoft: 'rgba(96,119,124,.30)',
+    partial: '#b99c63',
+    partialTreasure: '#b99c63',
+    revealed: '#bd6428',
+    revealedDark: '#8a431e',
+    acquired: '#f0c64f',
+    acquiredDark: '#79500f',
+    coin: '#f0c64f',
+    treasure: '#f2bf3f',
   };
 
   const canvas = document.getElementById('board');
@@ -561,7 +561,7 @@
 
     hintEl.textContent = mode === 'splash'
       ? `大きいスプラッシュ 残り${CONFIG.maxSplashes - splashesUsed}回・1回${CONFIG.splashInkCost}インク`
-      : `筆はSTART/接続インクから・橙=点数判明、緑=取得`;
+      : `筆はSTART/接続インクから・橙=点数判明、金=取得`;
 
     splashBtn.classList.toggle('active', mode === 'splash');
     brushBtn.classList.toggle('active', mode === 'brush');
@@ -720,21 +720,32 @@
     if (!resource.initiallyKnown || resource.coverage > 0 || resource.owned) return;
     const x = (resource.x + .5) * m.sx;
     const y = (resource.y + .5) * m.sy;
-    const r = 9 / camera.zoom;
+    const drift = 5 / camera.zoom;
+    const dx = Math.sin((resource.id + 1) * 2.17) * drift;
+    const dy = Math.cos((resource.id + 1) * 1.63) * drift * .65;
+    const haloR = 19 / camera.zoom;
+
     ctx.save();
-    ctx.translate(x,y);
-    ctx.strokeStyle = COLORS.positionSoft;
-    ctx.lineWidth = 2 / camera.zoom;
-    ctx.setLineDash([3 / camera.zoom, 3 / camera.zoom]);
+    ctx.translate(x + dx, y + dy);
+    ctx.scale(1.25, .82);
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloR);
+    halo.addColorStop(0, COLORS.positionSoft);
+    halo.addColorStop(.48, 'rgba(96,119,124,.16)');
+    halo.addColorStop(1, 'rgba(96,119,124,0)');
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(0,0,r,0,TAU);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.arc(0, 0, haloR, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(x + dx, y + dy);
+    ctx.globalAlpha = .62;
     ctx.fillStyle = COLORS.position;
-    ctx.font = `800 ${10 / camera.zoom}px system-ui`;
+    ctx.font = `800 ${9 / camera.zoom}px system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('?',0,.5 / camera.zoom);
+    ctx.fillText('?', 0, .5 / camera.zoom);
     ctx.restore();
   }
 
@@ -747,28 +758,27 @@
       ctx.save();
       ctx.translate(x,y);
       ctx.fillStyle = resource.isTreasure ? COLORS.treasure : COLORS.coin;
-      ctx.strokeStyle = COLORS.acquired;
-      ctx.lineWidth = 4 / camera.zoom;
+      ctx.strokeStyle = COLORS.acquiredDark;
+      ctx.lineWidth = 3.5 / camera.zoom;
       ctx.beginPath();
       ctx.arc(0,0,radius,0,TAU);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = resource.isTreasure ? '#624a00' : '#493b10';
+      ctx.fillStyle = COLORS.acquiredDark;
       ctx.font = `850 ${clamp(radius * .65, 11 / camera.zoom, 22 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(resource.value),0,.5 / camera.zoom);
 
       const markR = 8 / camera.zoom;
-      ctx.fillStyle = COLORS.acquired;
+      ctx.fillStyle = COLORS.acquiredDark;
       ctx.beginPath();
       ctx.arc(radius * .72, -radius * .72, markR, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = '#fffaf0';
       ctx.font = `900 ${11 / camera.zoom}px system-ui`;
       ctx.fillText('✓', radius * .72, -radius * .72 + .3 / camera.zoom);
-      drawStatusPill('取得', radius + 5 / camera.zoom, COLORS.acquired, '#fff');
       ctx.restore();
       return;
     }
@@ -800,20 +810,19 @@
       ctx.save();
       ctx.translate(x,y);
       ctx.strokeStyle = COLORS.revealed;
-      ctx.lineWidth = 2.5 / camera.zoom;
+      ctx.lineWidth = 2.1 / camera.zoom;
       ctx.beginPath();
       ctx.arc(0,0,radius + 2 / camera.zoom,0,TAU);
       ctx.stroke();
 
-      ctx.fillStyle = COLORS.revealedDark;
-      ctx.strokeStyle = 'rgba(255,250,229,.92)';
+      ctx.fillStyle = COLORS.revealed;
+      ctx.strokeStyle = 'rgba(255,248,229,.94)';
       ctx.lineWidth = 3 / camera.zoom;
       ctx.font = `850 ${clamp(radius * .56, 11 / camera.zoom, 20 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.strokeText(String(resource.value),0,.5 / camera.zoom);
       ctx.fillText(String(resource.value),0,.5 / camera.zoom);
-      drawStatusPill('判明', radius + 5 / camera.zoom, '#f4c86f', COLORS.revealedDark);
       ctx.restore();
     }
   }
@@ -822,6 +831,7 @@
     if (!feedback) return;
     const acquired = feedback.type === 'acquired';
     const bg = acquired ? COLORS.acquired : COLORS.revealed;
+    const fg = acquired ? COLORS.acquiredDark : '#fff';
     const title = feedback.title;
     const detail = feedback.detail;
     const centerX = m.w / 2;
@@ -838,7 +848,7 @@
     ctx.fill();
     ctx.shadowColor = 'transparent';
 
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = fg;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = '800 12px system-ui';
@@ -949,7 +959,7 @@
         <strong>特別埋蔵</strong>
         <span>50×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。橙は点数判明、緑は取得済み。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。橙は点数判明、金は取得済み。</p>`;
   }
 
   function reset(useSameSeed) {
