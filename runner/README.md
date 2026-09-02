@@ -17,6 +17,20 @@
 
 資源サイズの自動拡大は 180×280 を 1.00× とし、面積比の 0.32 乗で緩く増やす。現在のプリセットでは概ね 1.00 / 1.16 / 1.25 / 1.31 倍。
 
+## 現在の第一候補
+
+暫定値として以下をブラウザ版の初期値にしている。
+
+- 盤面: 240×420
+- 資源数: 40
+- スプラッシュ: 8回
+- 筆距離予算: 480
+- 筆半径: 2
+- START: 上から78%
+- 最終有効化数の目安: 6〜10個程度
+
+10個を必達・固定値にはせず、ランや戦略によって6〜10程度に散る状態を当面の評価目安にする。
+
 ## 仮の筆モデル
 
 点数分布と総インク換算が未確定なので、現時点では距離だけを使う簡易モデル。
@@ -28,8 +42,6 @@
 
 これはプレイヤーの最適行動を再現するものではなく、**筆を使うことで隠し資源がどの程度追加発見されるか**を見るための暫定ヒューリスティック。
 
-目安は「1プレイで最終的に10個前後を有効化できる」状態。ただし正式なインク消費量、点数、見えている／存在のみ見える／完全隠しの比率が決まった後に再調整する。
-
 ## ブラウザ
 
 GitHub Pages の `/runner/` から実行できる。
@@ -40,7 +52,7 @@ GitHub Pages の `/runner/` から実行できる。
 
 ```bash
 node runner/run.mjs --trials 500 --splashes 8 --strategy wide
-node runner/run.mjs --trials 500 --resources 30 --resourceRadius 3 --resourceCountMode fixed --resourceScaleMode auto
+node runner/run.mjs --trials 500 --resources 40 --resourceRadius 3 --resourceCountMode fixed --resourceScaleMode auto
 node runner/run.mjs --trials 500 --resourceCountMode density --resourceScaleMode fixed --json
 ```
 
