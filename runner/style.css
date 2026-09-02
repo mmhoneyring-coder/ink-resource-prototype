@@ -1,0 +1,38 @@
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #25231f;
+  background: #eee9dc;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #eee9dc; }
+button, input, select { font: inherit; }
+.shell { width: min(1100px, 100%); margin: 0 auto; padding: 18px; }
+header { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+h1 { font-size: clamp(22px, 4vw, 34px); margin: 0 0 6px; }
+h2 { margin: 0 0 12px; font-size: 18px; }
+p { margin: 0; line-height: 1.55; }
+header a { color: inherit; white-space: nowrap; }
+.card { background: rgba(255,255,255,.58); border: 1px solid rgba(60,55,45,.18); border-radius: 14px; padding: 14px; margin: 12px 0; box-shadow: 0 3px 15px rgba(40,35,25,.05); }
+.controls { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; }
+label { display: grid; gap: 5px; font-size: 13px; }
+input, select, button { min-height: 42px; border: 1px solid rgba(50,45,38,.25); border-radius: 10px; background: rgba(255,255,255,.78); padding: 8px 10px; }
+button { cursor: pointer; font-weight: 700; }
+button.primary { background: #25231f; color: #fff; }
+button:disabled { opacity: .55; cursor: wait; }
+.custom { display: grid; grid-template-columns: 160px 160px 1fr; gap: 10px; align-items: end; }
+#status { min-height: 42px; display: flex; align-items: center; padding: 0 10px; font-size: 13px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 760px; }
+th, td { padding: 9px 8px; border-bottom: 1px solid rgba(60,55,45,.12); text-align: right; font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+.note { margin-top: 10px; font-size: 13px; opacity: .72; }
+.sample-head { display: flex; gap: 12px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+#sampleCanvas { display: block; width: 100%; max-height: 560px; background: #f7f3e8; border: 1px solid rgba(60,55,45,.18); border-radius: 10px; }
+.scope strong { font-weight: 800; }
+@media (max-width: 760px) {
+  .shell { padding: 12px; }
+  header { align-items: center; }
+  .controls { grid-template-columns: 1fr 1fr; }
+  .custom { grid-template-columns: 1fr 1fr; }
+  #status { grid-column: 1 / -1; padding: 0; }
+}
