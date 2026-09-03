@@ -10,6 +10,107 @@
   <link rel="manifest" href="app.webmanifest" />
   <title>Ink Resource Prototype</title>
   <link rel="stylesheet" href="app.css" />
+  <style>
+    .app-shell {
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .play-area {
+      min-height: 0;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      overflow: hidden;
+      background: var(--paper-deep);
+    }
+
+    .play-area .board-wrap {
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .score-board {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: repeat(3, minmax(0, 1fr));
+      gap: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      border-left: 1px solid var(--line);
+      box-shadow: none;
+      overflow: hidden;
+    }
+
+    .score-board-row {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 18px minmax(0, 1fr);
+      grid-template-columns: 1fr;
+      align-items: stretch;
+      gap: 0;
+      padding: 2px 2px 3px;
+      border-bottom: 1px dashed rgba(78,68,51,.20);
+    }
+    .score-board-row:nth-child(1) { background: #eee6d5; }
+    .score-board-row:nth-child(2) { background: #f5eddc; }
+    .score-board-row:nth-child(3) { background: #fbf4e6; border-bottom: 0; }
+
+    .score-board-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #706a60;
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .score-board-values {
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: space-evenly;
+      gap: 0;
+      flex-wrap: nowrap;
+    }
+
+    .score-token {
+      width: 100%;
+      min-width: 0;
+      padding: 0;
+      font-size: 9.5px;
+      line-height: 16px;
+      text-align: center;
+    }
+    .score-token::before {
+      width: 38px;
+      height: 20px;
+    }
+
+    @media (max-width: 420px) {
+      .score-board { padding: 0; }
+      .score-board-row { grid-template-columns: 1fr; }
+      .score-token { min-width: 0; padding: 0; font-size: 9px; }
+    }
+
+    @media (orientation: landscape) and (max-height: 650px) {
+      .app-shell {
+        width: min(100%, 1000px);
+        grid-template-columns: 1fr 145px;
+        grid-template-rows: auto 1fr;
+      }
+      .hud { grid-column: 1 / -1; grid-row: 1; }
+      .play-area { grid-column: 1; grid-row: 2; }
+      .actions { grid-column: 2; grid-row: 2; }
+      .score-board { grid-column: auto; grid-row: auto; }
+      .board-wrap { grid-column: auto; grid-row: auto; }
+    }
+  </style>
 </head>
 <body>
   <main class="app-shell">
@@ -19,28 +120,30 @@
       <div class="stat compact"><span>取得</span><strong id="ownedCount">0</strong></div>
     </header>
 
-    <section class="score-board" id="scoreBoard" aria-label="公開得点ボード"></section>
+    <section class="play-area" aria-label="ゲーム盤面と公開得点">
+      <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
+        <canvas id="board" width="420" height="1120"></canvas>
 
-    <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
-      <canvas id="board" width="420" height="1120"></canvas>
-
-      <div class="zoom-tools" aria-label="表示範囲">
-        <button id="zoomOut" type="button" aria-label="広く見る">−</button>
-        <button id="zoomReset" type="button" aria-label="標準表示に戻す">100%</button>
-        <button id="zoomIn" type="button" aria-label="近く見る">＋</button>
-        <button id="distributionBtn" type="button" aria-label="埋蔵分布を見る">分布</button>
-        <button id="newBtn" type="button" aria-label="新しい盤面">新規</button>
-      </div>
-
-      <div class="distribution-panel" id="distributionPanel" hidden>
-        <div class="distribution-head">
-          <strong>埋蔵ルール</strong>
-          <button id="distributionClose" type="button" aria-label="閉じる">×</button>
+        <div class="zoom-tools" aria-label="表示範囲">
+          <button id="zoomOut" type="button" aria-label="広く見る">−</button>
+          <button id="zoomReset" type="button" aria-label="標準表示に戻す">100%</button>
+          <button id="zoomIn" type="button" aria-label="近く見る">＋</button>
+          <button id="distributionBtn" type="button" aria-label="埋蔵分布を見る">分布</button>
+          <button id="newBtn" type="button" aria-label="新しい盤面">新規</button>
         </div>
-        <div id="distributionContent"></div>
-      </div>
 
-      <div class="hint" id="hint">ラウンド1：スプラッシュを1回</div>
+        <div class="distribution-panel" id="distributionPanel" hidden>
+          <div class="distribution-head">
+            <strong>埋蔵ルール</strong>
+            <button id="distributionClose" type="button" aria-label="閉じる">×</button>
+          </div>
+          <div id="distributionContent"></div>
+        </div>
+
+        <div class="hint" id="hint">ラウンド1：スプラッシュを1回</div>
+      </section>
+
+      <section class="score-board" id="scoreBoard" aria-label="公開得点ボード"></section>
     </section>
 
     <nav class="actions" aria-label="現在の行動と筆操作">
