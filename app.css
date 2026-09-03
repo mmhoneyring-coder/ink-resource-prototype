@@ -227,6 +227,66 @@ button { font: inherit; }
   background: var(--panel);
   border-top: 1px solid var(--line);
 }
+.phase-card {
+  position: relative;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  perspective: 320px;
+  appearance: none;
+  pointer-events: none;
+  opacity: 1;
+}
+.phase-card:disabled { opacity: 1; color: inherit; }
+.phase-card-inner {
+  position: absolute;
+  inset: 0;
+  display: block;
+  transform-style: preserve-3d;
+  transition: transform .30s cubic-bezier(.2,.72,.25,1);
+}
+.phase-card:disabled .phase-card-inner { transform: rotateY(180deg); }
+.phase-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid rgba(30,30,30,.16);
+  border-radius: 9px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .01em;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.phase-front {
+  background: var(--accent);
+  color: white;
+}
+.phase-back {
+  transform: rotateY(180deg);
+  background: #343a39;
+  color: #fffdf7;
+}
+.phase-icon { font-size: 15px; line-height: 1; }
+.brush-mark { transform: rotate(-18deg); }
+.phase-round {
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+  z-index: 3;
+  color: rgba(255,255,255,.62);
+  font-size: 6.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
 .action, .result button {
   border: 1px solid rgba(30,30,30,.16);
   border-radius: 9px;
@@ -331,6 +391,7 @@ button { font: inherit; }
   .score-token { min-width: 27px; padding-left: 1px; padding-right: 1px; font-size: 9px; }
   .zoom-tools { grid-template-columns: 26px 41px 26px 32px 34px; }
   .actions { grid-template-columns: 1fr .78fr .78fr 68px; gap: 3px; padding-left: 5px; padding-right: 5px; }
+  .phase-face { font-size: 10px; gap: 4px; }
   .action { font-size: 10px; }
   .ink-gauge { width: 68px; }
 }
@@ -352,5 +413,6 @@ button { font: inherit; }
     border-top: 0;
     border-left: 1px solid var(--line);
   }
+  .phase-card { min-height: 40px; }
   .ink-gauge { width: 100%; border-left: 0; }
 }
