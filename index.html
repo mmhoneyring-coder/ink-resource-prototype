@@ -92,10 +92,18 @@
       height: 20px;
     }
 
+    .zoom-tools {
+      grid-template-columns: 34px 36px;
+    }
+    .zoom-tools button[hidden] {
+      display: none;
+    }
+
     @media (max-width: 420px) {
       .score-board { padding: 0; }
       .score-board-row { grid-template-columns: 1fr; }
       .score-token { min-width: 0; padding: 0; font-size: 9px; }
+      .zoom-tools { grid-template-columns: 32px 34px; }
     }
 
     @media (orientation: landscape) and (max-height: 650px) {
@@ -124,10 +132,10 @@
       <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
         <canvas id="board" width="420" height="1120"></canvas>
 
-        <div class="zoom-tools" aria-label="表示範囲">
-          <button id="zoomOut" type="button" aria-label="広く見る">−</button>
-          <button id="zoomReset" type="button" aria-label="標準表示に戻す">100%</button>
-          <button id="zoomIn" type="button" aria-label="近く見る">＋</button>
+        <div class="zoom-tools" aria-label="補助操作">
+          <button id="zoomOut" type="button" aria-label="広く見る" hidden>−</button>
+          <button id="zoomReset" type="button" aria-label="標準表示に戻す" hidden>100%</button>
+          <button id="zoomIn" type="button" aria-label="近く見る" hidden>＋</button>
           <button id="distributionBtn" type="button" aria-label="埋蔵分布を見る">分布</button>
           <button id="newBtn" type="button" aria-label="新しい盤面">新規</button>
         </div>
@@ -193,6 +201,21 @@
     </div>
   </main>
 
+  <script>
+    (() => {
+      const board = document.getElementById('board');
+      const ignoreSecondaryPointer = event => {
+        if (!event.isPrimary) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      };
+      board.addEventListener('pointerdown', ignoreSecondaryPointer, true);
+      board.addEventListener('pointermove', ignoreSecondaryPointer, true);
+      board.addEventListener('pointerup', ignoreSecondaryPointer, true);
+      board.addEventListener('pointercancel', ignoreSecondaryPointer, true);
+    })();
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
