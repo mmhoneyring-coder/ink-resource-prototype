@@ -30,7 +30,6 @@
     resources: {
       minHomeDistance: 34,
       minGap: 10,
-      treasureValue: 500,
       scoreStep: 10,
       counts: {
         upper: 6,
@@ -85,7 +84,6 @@
           { name: 'large', radius: 16 },
         ],
       },
-      treasureSize: { name: 'tiny', radius: 5 },
     },
   };
 
@@ -430,17 +428,6 @@
       }
     }
 
-    const treasureBand = randInt(0, 2);
-    const treasure = placeResource(
-      list,
-      treasureBand,
-      CONFIG.resources.treasureValue,
-      CONFIG.resources.treasureSize,
-      id++,
-      true
-    );
-    list.push(treasure);
-
     for (let band = 0; band < 3; band++) {
       const knownCandidates = list.filter(resource => resource.band === band && !resource.isTreasure);
       const known = knownCandidates[randInt(0, knownCandidates.length - 1)];
@@ -472,13 +459,7 @@
       </div>`;
     }).join('');
 
-    const treasure = resources.find(resource => resource.isTreasure);
-    const special = treasure ? scoreToken(treasure) : '';
-    scoreBoardEl.innerHTML = `${rows}
-      <div class="score-board-row special">
-        <span class="score-board-label">特別</span>
-        <div class="score-board-values">${special}</div>
-      </div>`;
+    scoreBoardEl.innerHTML = rows;
   }
 
   function coverageStats(resource) {
@@ -1018,11 +999,7 @@
         <span>通常 ${rule.normalMin}〜${rule.normalMax} / 当たり下限 ${rule.hitMin} / 単発上限 ${rule.singleMax}</span>
       </div>`;
     }).join('') + `
-      <div class="distribution-row treasure-row">
-        <strong>特別埋蔵</strong>
-        <span>500×1（全層のどこか・極小5固定）</span>
-      </div>
-      <p class="distribution-note">通常14個＋特別500の合計15個。通常点は10点刻みで全14個重複なし。通常・単発当たり・全体当たりがあり、当たりは毎回保証されず複数層で起こることもある。全体当たりは下限だけ上がり、単発当たりは1個だけ上限が広がる。サイズは上層=小2/中3/大1、中層=小2/中1/大2、下層=小1/中1/大1。30%で点数判明、70%以上を塗ってSTARTへ接続すると取得。</p>`;
+      <p class="distribution-note">通常14個。点数は10点刻みで全14個重複なし。通常・単発当たり・全体当たりがあり、当たりは毎回保証されず複数層で起こることもある。全体当たりは下限だけ上がり、単発当たりは1個だけ上限が広がる。サイズは上層=小2/中3/大1、中層=小2/中1/大2、下層=小1/中1/大1。30%で点数判明、70%以上を塗ってSTARTへ接続すると取得。</p>`;
   }
 
   function reset(useSameSeed) {
