@@ -44,9 +44,18 @@
     </section>
 
     <nav class="actions" aria-label="現在の行動と筆操作">
-      <button id="splashBtn" class="action active phase-action" type="button">
-        <span class="action-icon">✦</span>
-        <span>スプラッシュ <small id="splashLeft" class="action-cost">1/4</small></span>
+      <button id="splashBtn" class="phase-card active" type="button" aria-label="現在の行動">
+        <span class="phase-card-inner" aria-hidden="true">
+          <span class="phase-face phase-front">
+            <span class="phase-icon">✦</span>
+            <span>スプラッシュ</span>
+          </span>
+          <span class="phase-face phase-back">
+            <span class="phase-icon brush-mark">✎</span>
+            <span>筆</span>
+          </span>
+        </span>
+        <small id="splashLeft" class="phase-round">1/4</small>
       </button>
       <button id="brushBtn" class="action" type="button" aria-label="細筆">
         <span class="pen-dot thin-dot"></span>
