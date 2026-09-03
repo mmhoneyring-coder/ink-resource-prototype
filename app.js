@@ -85,7 +85,7 @@
           { name: 'large', radius: 16 },
         ],
       },
-      treasureSize: { name: 'small', radius: 8 },
+      treasureSize: { name: 'tiny', radius: 6 },
     },
   };
 
@@ -1020,7 +1020,7 @@
     }).join('') + `
       <div class="distribution-row treasure-row">
         <strong>特別埋蔵</strong>
-        <span>500×1（全層のどこか・小8固定）</span>
+        <span>500×1（全層のどこか・極小6固定）</span>
       </div>
       <p class="distribution-note">通常14個＋特別500の合計15個。通常点は10点刻みで全14個重複なし。通常・単発当たり・全体当たりがあり、当たりは毎回保証されず複数層で起こることもある。全体当たりは下限だけ上がり、単発当たりは1個だけ上限が広がる。サイズは上層=小2/中3/大1、中層=小2/中1/大2、下層=小1/中1/大1。30%で点数判明、70%以上を塗ってSTARTへ接続すると取得。</p>`;
   }
