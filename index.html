@@ -10,151 +10,15 @@
   <link rel="manifest" href="app.webmanifest" />
   <title>Ink Resource Prototype</title>
   <link rel="stylesheet" href="app.css" />
-  <style>
-    .app-shell {
-      grid-template-rows: auto minmax(0, 1fr) auto;
-    }
-
-    .play-area {
-      min-height: 0;
-      min-width: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 44px;
-      overflow: hidden;
-      background: var(--paper-deep);
-    }
-
-    .play-area .board-wrap {
-      min-width: 0;
-      min-height: 0;
-    }
-
-    .score-board {
-      min-width: 0;
-      min-height: 0;
-      display: grid;
-      grid-template-rows: repeat(3, minmax(0, 1fr));
-      gap: 0;
-      padding: 0;
-      background: transparent;
-      border: 0;
-      border-left: 1px solid var(--line);
-      box-shadow: none;
-      overflow: hidden;
-    }
-
-    .score-board-row {
-      min-height: 0;
-      display: grid;
-      grid-template-rows: 18px minmax(0, 1fr);
-      grid-template-columns: 1fr;
-      align-items: stretch;
-      gap: 0;
-      padding: 2px 2px 3px;
-      border-bottom: 1px dashed rgba(78,68,51,.20);
-    }
-    .score-board-row:nth-child(1) { background: #eee6d5; }
-    .score-board-row:nth-child(2) { background: #f5eddc; }
-    .score-board-row:nth-child(3) { background: #fbf4e6; border-bottom: 0; }
-
-    .score-board-label {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #706a60;
-      font-size: 8px;
-      font-weight: 800;
-      line-height: 1;
-      white-space: nowrap;
-    }
-
-    .score-board-values {
-      min-width: 0;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: space-evenly;
-      gap: 0;
-      flex-wrap: nowrap;
-    }
-
-    .score-token {
-      width: 100%;
-      min-width: 0;
-      padding: 0;
-      font-size: 9.5px;
-      line-height: 16px;
-      text-align: center;
-    }
-    .score-token::before {
-      width: 38px;
-      height: 20px;
-    }
-
-    .zoom-tools {
-      grid-template-columns: 34px 36px;
-    }
-    .zoom-tools button[hidden] {
-      display: none;
-    }
-
-    @media (max-width: 420px) {
-      .score-board { padding: 0; }
-      .score-board-row { grid-template-columns: 1fr; }
-      .score-token { min-width: 0; padding: 0; font-size: 9px; }
-      .zoom-tools { grid-template-columns: 32px 34px; }
-    }
-
-    @media (orientation: landscape) and (max-height: 650px) {
-      .app-shell {
-        width: min(100%, 1000px);
-        grid-template-columns: 1fr 145px;
-        grid-template-rows: auto 1fr;
-      }
-      .hud { grid-column: 1 / -1; grid-row: 1; }
-      .play-area { grid-column: 1; grid-row: 2; }
-      .actions { grid-column: 2; grid-row: 2; }
-      .score-board { grid-column: auto; grid-row: auto; }
-      .board-wrap { grid-column: auto; grid-row: auto; }
-    }
-  </style>
 </head>
 <body>
   <main class="app-shell">
-    <header class="hud">
-      <div class="stat"><span>得点</span><strong id="score">0</strong></div>
-      <div class="stat"><span>ラウンド</span><strong id="roundCount">1/4</strong></div>
-      <div class="stat compact"><span>取得</span><strong id="ownedCount">0</strong></div>
-    </header>
+    <header class="hud" aria-label="ゲーム状況">
+      <div class="score-stat">
+        <span>得点</span>
+        <strong id="score">0</strong>
+      </div>
 
-    <section class="play-area" aria-label="ゲーム盤面と公開得点">
-      <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
-        <canvas id="board" width="420" height="1120"></canvas>
-
-        <div class="zoom-tools" aria-label="補助操作">
-          <button id="zoomOut" type="button" aria-label="広く見る" hidden>−</button>
-          <button id="zoomReset" type="button" aria-label="標準表示に戻す" hidden>100%</button>
-          <button id="zoomIn" type="button" aria-label="近く見る" hidden>＋</button>
-          <button id="distributionBtn" type="button" aria-label="埋蔵分布を見る">分布</button>
-          <button id="newBtn" type="button" aria-label="新しい盤面">新規</button>
-        </div>
-
-        <div class="distribution-panel" id="distributionPanel" hidden>
-          <div class="distribution-head">
-            <strong>埋蔵ルール</strong>
-            <button id="distributionClose" type="button" aria-label="閉じる">×</button>
-          </div>
-          <div id="distributionContent"></div>
-        </div>
-
-        <div class="hint" id="hint">ラウンド1：スプラッシュを1回</div>
-      </section>
-
-      <section class="score-board" id="scoreBoard" aria-label="公開得点ボード"></section>
-    </section>
-
-    <nav class="actions" aria-label="現在の行動と筆操作">
       <button id="splashBtn" class="phase-card active" type="button" aria-label="現在の行動">
         <span class="phase-card-inner" aria-hidden="true">
           <span class="phase-face phase-front">
@@ -168,6 +32,23 @@
         </span>
         <small id="splashLeft" class="phase-round">1/4</small>
       </button>
+
+      <button id="newBtn" class="new-button" type="button" aria-label="新しい盤面">新規</button>
+
+      <strong id="roundCount" hidden>1/4</strong>
+      <strong id="ownedCount" hidden>0</strong>
+    </header>
+
+    <section class="play-area" aria-label="ゲーム盤面と公開得点">
+      <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
+        <canvas id="board" width="420" height="1120"></canvas>
+        <div class="hint" id="hint">ラウンド1：スプラッシュを1回</div>
+      </section>
+
+      <section class="score-board" id="scoreBoard" aria-label="公開得点ボード"></section>
+    </section>
+
+    <nav class="actions" aria-label="筆操作">
       <button id="brushBtn" class="action" type="button" aria-label="細筆">
         <span class="pen-dot thin-dot"></span>
         <span>細筆</span>
@@ -177,16 +58,22 @@
         <span>太筆</span>
       </button>
       <div class="ink-gauge inactive" id="penLoad" role="progressbar" aria-label="筆インク残量" aria-valuemin="0" aria-valuemax="650" aria-valuenow="650">
-        <svg class="penicon" viewBox="0 0 32 42" aria-hidden="true">
-          <path d="M13 3h8l5 27-9 9-9-9Z" fill="#f8f6ee" stroke="#555" stroke-width="2"/>
-          <path d="M13 3h8l1 7h-10Z" fill="#6c7783"/>
-          <path d="M12 28h10l-5 11Z" fill="#d8c7a0"/>
-          <circle cx="17" cy="28" r="2" fill="#222"/>
-        </svg>
+        <span class="ink-label">INK</span>
         <div class="meter" aria-hidden="true"><i id="inkFill"></i></div>
         <small id="brushRemaining">650</small>
       </div>
     </nav>
+
+    <div class="internal-controls" hidden aria-hidden="true">
+      <button id="zoomOut" type="button">−</button>
+      <button id="zoomReset" type="button">100%</button>
+      <button id="zoomIn" type="button">＋</button>
+      <button id="distributionBtn" type="button">分布</button>
+      <div class="distribution-panel" id="distributionPanel" hidden>
+        <button id="distributionClose" type="button">×</button>
+        <div id="distributionContent"></div>
+      </div>
+    </div>
 
     <div class="result" id="result" hidden>
       <div class="result-card">
