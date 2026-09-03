@@ -24,153 +24,156 @@ jobs:
 
           p = Path('app.js')
           s = p.read_text()
+
           if 'starterPuddle: { radius: 20 }' in s:
               print('starter puddle already applied')
               raise SystemExit(0)
 
-          s = s.replace(
+          def replace_once(old, new):
+              global s
+              if old not in s:
+                  raise SystemExit('missing migration target: ' + repr(old[:120]))
+              s = s.replace(old, new, 1)
+
+          replace_once(
               "    homeRadius: 10,\n    homeY: 0.80,\n",
-              "    starterPuddle: { radius: 20 },\n"
+              "    starterPuddle: { radius: 20 },\n",
           )
-          s = s.replace(
+          replace_once(
               "  let ink = new Set();\n  let connected = new Set();\n",
-              "  let ink = new Set();\n  let starterInk = new Set();\n  let connected = new Set();\n"
+              "  let ink = new Set();\n  let starterInk = new Set();\n  let connected = new Set();\n",
+          )
+          replace_once(
+              "  function home() {\n"
+              "    return {\n"
+              "      x: Math.floor(CONFIG.cols / 2),\n"
+              "      y: Math.floor(CONFIG.rows * CONFIG.homeY),\n"
+              "    };\n"
+              "  }\n",
+              "  function starterAnchor() {\n"
+              "    const radius = CONFIG.starterPuddle.radius;\n"
+              "    return {\n"
+              "      x: Math.floor(CONFIG.cols / 2),\n"
+              "      y: CONFIG.rows - 1 - Math.round(radius * .42),\n"
+              "    };\n"
+              "  }\n",
           )
 
-          old = '''  function home() {
-            return {
-              x: Math.floor(CONFIG.cols / 2),
-              y: Math.floor(CONFIG.rows * CONFIG.homeY),
-            };
-          }
-          '''
-          new = '''  function starterAnchor() {
-            const radius = CONFIG.starterPuddle.radius;
-            return {
-              x: Math.floor(CONFIG.cols / 2),
-              y: CONFIG.rows - 1 - Math.round(radius * .42),
-            };
-          }
-          '''
-          assert old in s
-          s = s.replace(old, new)
+          starter_fn = (
+              "  function createStarterPuddle() {\n"
+              "    const target = new Set();\n"
+              "    const anchor = starterAnchor();\n"
+              "    const radius = CONFIG.starterPuddle.radius;\n"
+              "    const bottom = CONFIG.rows - 1;\n"
+              "\n"
+              "    // A low, irregular pool that visibly continues through the bottom edge.\n"
+              "    addDisk(anchor.x, bottom - 2, radius * .82, target);\n"
+              "    addDisk(anchor.x - radius * .58, bottom - 4, radius * .48, target);\n"
+              "    addDisk(anchor.x + radius * .58, bottom - 3, radius * .54, target);\n"
+              "    addDisk(anchor.x - radius * .10, bottom - radius * .55, radius * .55, target);\n"
+              "    addDisk(anchor.x + radius * .34, bottom - radius * .62, radius * .42, target);\n"
+              "\n"
+              "    // Small connected bumps keep the silhouette from reading as a clean semicircle.\n"
+              "    const bumps = randInt(2, 3);\n"
+              "    for (let i = 0; i < bumps; i++) {\n"
+              "      const angle = rand(Math.PI * 1.08, Math.PI * 1.92);\n"
+              "      const distance = rand(radius * .32, radius * .58);\n"
+              "      addDisk(\n"
+              "        anchor.x + Math.cos(angle) * distance,\n"
+              "        bottom - radius * .42 + Math.sin(angle) * distance * .42,\n"
+              "        radius * rand(.20, .30),\n"
+              "        target\n"
+              "      );\n"
+              "    }\n"
+              "\n"
+              "    starterInk = target;\n"
+              "    for (const k of starterInk) ink.add(k);\n"
+              "  }\n"
+              "\n"
+          )
+          replace_once(
+              "  function splashPoint(cx, cy, minDistance, maxDistance) {\n",
+              starter_fn + "  function splashPoint(cx, cy, minDistance, maxDistance) {\n",
+          )
 
-          needle = '''  function splashPoint(cx, cy, minDistance, maxDistance) {
-          '''
-          insert = '''  function createStarterPuddle() {
-            const target = new Set();
-            const anchor = starterAnchor();
-            const radius = CONFIG.starterPuddle.radius;
-            const bottom = CONFIG.rows - 1;
-
-            // A low, irregular pool that visibly continues through the bottom edge.
-            addDisk(anchor.x, bottom - 2, radius * .82, target);
-            addDisk(anchor.x - radius * .58, bottom - 4, radius * .48, target);
-            addDisk(anchor.x + radius * .58, bottom - 3, radius * .54, target);
-            addDisk(anchor.x - radius * .10, bottom - radius * .55, radius * .55, target);
-            addDisk(anchor.x + radius * .34, bottom - radius * .62, radius * .42, target);
-
-            // Small connected bumps keep the silhouette from reading as a clean semicircle.
-            const bumps = randInt(2, 3);
-            for (let i = 0; i < bumps; i++) {
-              const angle = rand(Math.PI * 1.08, Math.PI * 1.92);
-              const distance = rand(radius * .32, radius * .58);
-              addDisk(
-                anchor.x + Math.cos(angle) * distance,
-                bottom - radius * .42 + Math.sin(angle) * distance * .42,
-                radius * rand(.20, .30),
-                target
-              );
-            }
-
-            starterInk = target;
-            for (const k of starterInk) ink.add(k);
-          }
-
-          '''
-          assert needle in s
-          s = s.replace(needle, insert + needle)
-
-          s = s.replace("    const h = home();\n", "    const anchor = starterAnchor();\n", 1)
-          s = s.replace(
+          replace_once(
+              "    const h = home();\n",
+              "    const anchor = starterAnchor();\n",
+          )
+          replace_once(
               "      const tooCloseHome = Math.hypot(x - h.x, y - h.y) < CONFIG.resources.minHomeDistance + radius;\n",
-              "      const tooCloseStarter = Math.hypot(x - anchor.x, y - anchor.y) < CONFIG.resources.minHomeDistance + radius;\n"
+              "      const tooCloseStarter = Math.hypot(x - anchor.x, y - anchor.y) < CONFIG.resources.minHomeDistance + radius;\n",
           )
-          s = s.replace(
+          replace_once(
               "      if (!tooCloseHome && !overlaps) break;\n",
-              "      if (!tooCloseStarter && !overlaps) break;\n"
+              "      if (!tooCloseStarter && !overlaps) break;\n",
           )
 
-          old_refresh = '''  function refreshConnected() {
-            const h = home();
-            const queue = [];
-            const active = new Set();
+          replace_once(
+              "  function refreshConnected() {\n"
+              "    const h = home();\n"
+              "    const queue = [];\n"
+              "    const active = new Set();\n"
+              "\n"
+              "    for (const k of ink) {\n"
+              "      const p = parseKey(k);\n"
+              "      if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + 3) {\n"
+              "        active.add(k);\n"
+              "        queue.push(k);\n"
+              "      }\n"
+              "    }\n"
+              "\n"
+              "    for (let i = 0; i < queue.length; i++) {\n",
+              "  function refreshConnected() {\n"
+              "    const queue = [];\n"
+              "    const active = new Set();\n"
+              "\n"
+              "    // Connectivity originates from the starter puddle itself, not an invisible point.\n"
+              "    for (const k of starterInk) {\n"
+              "      if (!ink.has(k)) continue;\n"
+              "      active.add(k);\n"
+              "      queue.push(k);\n"
+              "    }\n"
+              "\n"
+              "    for (let i = 0; i < queue.length; i++) {\n",
+          )
 
-            for (const k of ink) {
-              const p = parseKey(k);
-              if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + 3) {
-                active.add(k);
-                queue.push(k);
-              }
-            }
-
-            for (let i = 0; i < queue.length; i++) {
-          '''
-          new_refresh = '''  function refreshConnected() {
-            const queue = [];
-            const active = new Set();
-
-            // Connectivity originates from the starter puddle itself, not an invisible point.
-            for (const k of starterInk) {
-              if (!ink.has(k)) continue;
-              active.add(k);
-              queue.push(k);
-            }
-
-            for (let i = 0; i < queue.length; i++) {
-          '''
-          assert old_refresh in s
-          s = s.replace(old_refresh, new_refresh)
-
-          old_render = '''    const h = home();
-            ctx.save();
-            ctx.translate((h.x+.5)*m.sx, (h.y+.5)*m.sy);
-            ctx.fillStyle = '#fffaf0';
-            ctx.strokeStyle = '#263d37';
-            ctx.lineWidth = 2 / camera.zoom;
-            ctx.beginPath();
-            ctx.arc(0,0, Math.max(14 / camera.zoom, CONFIG.homeRadius*m.sx), 0, TAU);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = '#263d37';
-            ctx.font = `700 ${11 / camera.zoom}px system-ui`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('START',0,0);
-            ctx.restore();
-
-          '''
-          assert old_render in s
-          s = s.replace(old_render, '')
+          replace_once(
+              "    const h = home();\n"
+              "    ctx.save();\n"
+              "    ctx.translate((h.x+.5)*m.sx, (h.y+.5)*m.sy);\n"
+              "    ctx.fillStyle = '#fffaf0';\n"
+              "    ctx.strokeStyle = '#263d37';\n"
+              "    ctx.lineWidth = 2 / camera.zoom;\n"
+              "    ctx.beginPath();\n"
+              "    ctx.arc(0,0, Math.max(14 / camera.zoom, CONFIG.homeRadius*m.sx), 0, TAU);\n"
+              "    ctx.fill();\n"
+              "    ctx.stroke();\n"
+              "    ctx.fillStyle = '#263d37';\n"
+              "    ctx.font = `700 ${11 / camera.zoom}px system-ui`;\n"
+              "    ctx.textAlign = 'center';\n"
+              "    ctx.textBaseline = 'middle';\n"
+              "    ctx.fillText('START',0,0);\n"
+              "    ctx.restore();\n"
+              "\n",
+              "",
+          )
 
           s = s.replace(
               '70%以上を塗ってSTARTへ接続すると取得。',
-              '70%以上を塗って起点のインク溜まりへ接続すると取得。'
+              '70%以上を塗って起点のインク溜まりへ接続すると取得。',
           )
-          s = s.replace(
+          replace_once(
               "    ink = new Set();\n    connected = new Set();\n",
-              "    ink = new Set();\n    starterInk = new Set();\n    connected = new Set();\n"
+              "    ink = new Set();\n    starterInk = new Set();\n    connected = new Set();\n",
           )
-
-          old_reset = '''    const h = home();
-            addDisk(h.x, h.y, CONFIG.homeRadius);
-            refreshConnected();
-          '''
-          new_reset = '''    createStarterPuddle();
-            refreshConnected();
-          '''
-          assert old_reset in s
-          s = s.replace(old_reset, new_reset)
+          replace_once(
+              "    const h = home();\n"
+              "    addDisk(h.x, h.y, CONFIG.homeRadius);\n"
+              "    refreshConnected();\n",
+              "    createStarterPuddle();\n"
+              "    refreshConnected();\n",
+          )
 
           p.write_text(s)
           PY
