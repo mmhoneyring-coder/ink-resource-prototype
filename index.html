@@ -19,6 +19,8 @@
       <div class="stat compact"><span>取得</span><strong id="ownedCount">0</strong></div>
     </header>
 
+    <section class="score-board" id="scoreBoard" aria-label="公開得点ボード"></section>
+
     <section class="board-wrap" id="boardWrap" aria-label="ゲーム盤面">
       <canvas id="board" width="420" height="1120"></canvas>
 
@@ -43,7 +45,7 @@
 
       <div class="distribution-panel" id="distributionPanel" hidden>
         <div class="distribution-head">
-          <strong>公開されている埋蔵分布</strong>
+          <strong>埋蔵ルール</strong>
           <button id="distributionClose" type="button" aria-label="閉じる">×</button>
         </div>
         <div id="distributionContent"></div>
