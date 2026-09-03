@@ -1,0 +1,158 @@
+name: One-time board fit repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-board-fit.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Repair baseline fit and pinch recovery
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app.js')
+          s = path.read_text()
+
+          old = """  function resizeCanvas() {
+            const rect = boardWrap.getBoundingClientRect();
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            canvas.width = Math.max(1, Math.round(rect.width * dpr));
+            canvas.height = Math.max(1, Math.round(rect.height * dpr));
+            ctx.setTransform(dpr,0,0,dpr,0,0);
+            clampCamera();
+            render();
+          }
+          """
+          new = """  function resizeCanvas() {
+            const rect = boardWrap.getBoundingClientRect();
+            const dpr = Math.min(2, window.devicePixelRatio || 1);
+            canvas.width = Math.max(1, Math.round(rect.width * dpr));
+            canvas.height = Math.max(1, Math.round(rect.height * dpr));
+            ctx.setTransform(dpr,0,0,dpr,0,0);
+
+            // Viewport changes must return the baseline view to a true full-board fit.
+            // Keep an active pinch uninterrupted, but never preserve a stale cropped camera.
+            if (gesture && pointers.size >= 2) {
+              clampCamera();
+            } else {
+              camera.zoom = CONFIG.zoom.default;
+              centerCamera();
+              updateZoomLabel();
+            }
+            render();
+          }
+          """
+          assert old in s, 'resizeCanvas block not found'
+          s = s.replace(old, new, 1)
+
+          old = """  function resetCamera() {
+            camera.zoom = CONFIG.zoom.default;
+            centerCamera();
+            updateZoomLabel();
+            render();
+          }
+          """
+          new = """  function fitCamera(renderNow = true) {
+            camera.zoom = CONFIG.zoom.default;
+            centerCamera();
+            updateZoomLabel();
+            if (renderNow) render();
+          }
+
+          function resetCamera() {
+            fitCamera(true);
+          }
+          """
+          assert old in s, 'resetCamera block not found'
+          s = s.replace(old, new, 1)
+
+          old = """    phase = 'brush';
+            brushRemaining = CONFIG.brushAreaPerTurn;
+            updateHud();
+          """
+          new = """    phase = 'brush';
+            brushRemaining = CONFIG.brushAreaPerTurn;
+            fitCamera(false);
+            updateHud();
+          """
+          assert old in s, 'splash-to-brush transition not found'
+          s = s.replace(old, new, 1)
+
+          old = """    round++;
+            phase = 'splash';
+            brushRemaining = CONFIG.brushAreaPerTurn;
+            updateHud();
+          """
+          new = """    round++;
+            phase = 'splash';
+            brushRemaining = CONFIG.brushAreaPerTurn;
+            fitCamera(false);
+            updateHud();
+          """
+          assert old in s, 'brush-to-splash transition not found'
+          s = s.replace(old, new, 1)
+
+          old = """      const zoom = clamp(gesture.zoom * distance / gesture.distance, CONFIG.zoom.min, CONFIG.zoom.max);
+              camera.zoom = zoom;
+              camera.tx = mx - gesture.wx * zoom;
+              camera.ty = my - gesture.wy * zoom;
+              clampCamera();
+              updateZoomLabel();
+              render();
+          """
+          new = """      const zoom = clamp(gesture.zoom * distance / gesture.distance, CONFIG.zoom.min, CONFIG.zoom.max);
+              camera.zoom = zoom;
+              if (zoom <= CONFIG.zoom.min + .002) {
+                camera.zoom = CONFIG.zoom.min;
+                centerCamera();
+              } else {
+                camera.tx = mx - gesture.wx * zoom;
+                camera.ty = my - gesture.wy * zoom;
+                clampCamera();
+              }
+              updateZoomLabel();
+              render();
+          """
+          assert old in s, 'pinch move block not found'
+          s = s.replace(old, new, 1)
+
+          old = """    if (shouldFinishStroke && !gesture) finishStroke();
+            if (pointers.size < 2) gesture = null;
+          }
+          """
+          new = """    if (shouldFinishStroke && !gesture) finishStroke();
+            if (pointers.size < 2) {
+              gesture = null;
+              if (camera.zoom <= CONFIG.zoom.min + .002) fitCamera(false);
+            }
+          }
+          """
+          assert old in s, 'pointer end block not found'
+          s = s.replace(old, new, 1)
+
+          path.write_text(s)
+          PY
+
+      - name: Validate and push
+        shell: bash
+        run: |
+          node --check app.js
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          git commit -m "Restore full-board fit and pinch recovery"
+          git push
