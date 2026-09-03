@@ -31,18 +31,61 @@
       minHomeDistance: 34,
       minGap: 10,
       treasureValue: 500,
-      decks: {
-        upper: [160, 200, 240, 270, 300],
-        middle: [80, 100, 120, 140, 160],
-        lower: [30, 40, 50, 60, 80],
+      scoreStep: 10,
+      counts: {
+        upper: 6,
+        middle: 5,
+        lower: 3,
       },
-      sizes: [
-        { name: 'small', radius: 8 },
-        { name: 'small', radius: 8 },
-        { name: 'medium', radius: 12 },
-        { name: 'medium', radius: 12 },
-        { name: 'large', radius: 16 },
-      ],
+      scoreBands: {
+        upper: {
+          normalMin: 130,
+          hitMin: 190,
+          normalMax: 320,
+          singleMax: 420,
+          singleChance: 0.20,
+          fullChance: 0.08,
+        },
+        middle: {
+          normalMin: 70,
+          hitMin: 110,
+          normalMax: 190,
+          singleMax: 280,
+          singleChance: 0.12,
+          fullChance: 0.12,
+        },
+        lower: {
+          normalMin: 30,
+          hitMin: 60,
+          normalMax: 100,
+          singleMax: 150,
+          singleChance: 0.08,
+          fullChance: 0.20,
+        },
+      },
+      sizeDecks: {
+        upper: [
+          { name: 'small', radius: 8 },
+          { name: 'small', radius: 8 },
+          { name: 'medium', radius: 12 },
+          { name: 'medium', radius: 12 },
+          { name: 'medium', radius: 12 },
+          { name: 'large', radius: 16 },
+        ],
+        middle: [
+          { name: 'small', radius: 8 },
+          { name: 'small', radius: 8 },
+          { name: 'medium', radius: 12 },
+          { name: 'large', radius: 16 },
+          { name: 'large', radius: 16 },
+        ],
+        lower: [
+          { name: 'small', radius: 8 },
+          { name: 'medium', radius: 12 },
+          { name: 'large', radius: 16 },
+        ],
+      },
+      treasureSize: { name: 'small', radius: 8 },
     },
   };
 
@@ -67,6 +110,7 @@
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('boardWrap');
+  const scoreBoardEl = document.getElementById('scoreBoard');
   const scoreEl = document.getElementById('score');
   const roundEl = document.getElementById('roundCount');
   const ownedEl = document.getElementById('ownedCount');
@@ -320,25 +364,82 @@
     };
   }
 
+  function scoreCandidates(min, max, used) {
+    const step = CONFIG.resources.scoreStep;
+    const start = Math.ceil(min / step) * step;
+    const out = [];
+    for (let value = start; value <= max; value += step) {
+      if (!used.has(value)) out.push(value);
+    }
+    return out;
+  }
+
+  function takeUniqueScore(min, max, used) {
+    const candidates = scoreCandidates(min, max, used);
+    if (!candidates.length) throw new Error(`No unique score available in ${min}-${max}`);
+    const value = candidates[randInt(0, candidates.length - 1)];
+    used.add(value);
+    return value;
+  }
+
+  function chooseScoreMode(rule) {
+    const roll = rng();
+    if (roll < rule.fullChance) return 'full';
+    if (roll < rule.fullChance + rule.singleChance) return 'single';
+    return 'normal';
+  }
+
+  function createBandScorePlan(name, count, used) {
+    const rule = CONFIG.resources.scoreBands[name];
+    const mode = chooseScoreMode(rule);
+    const singleIndex = mode === 'single' ? randInt(0, count - 1) : -1;
+    const values = [];
+
+    for (let i = 0; i < count; i++) {
+      if (mode === 'full') {
+        values.push(takeUniqueScore(rule.hitMin, rule.normalMax, used));
+      } else if (i === singleIndex) {
+        values.push(takeUniqueScore(rule.hitMin, rule.singleMax, used));
+      } else {
+        values.push(takeUniqueScore(rule.normalMin, rule.normalMax, used));
+      }
+    }
+
+    return { mode, values };
+  }
+
   function createResources() {
     const list = [];
+    const usedScores = new Set();
+    const scorePlans = {};
     let id = 0;
+
+    // Narrow score ranges are generated first so cross-band uniqueness never starves them.
+    for (const band of [2, 1, 0]) {
+      const name = BAND_NAMES[band];
+      scorePlans[name] = createBandScorePlan(name, CONFIG.resources.counts[name], usedScores);
+    }
 
     for (let band = 0; band < 3; band++) {
       const name = BAND_NAMES[band];
-      const values = shuffled(CONFIG.resources.decks[name]);
-      const sizes = shuffled(CONFIG.resources.sizes);
+      const values = shuffled(scorePlans[name].values);
+      const sizes = shuffled(CONFIG.resources.sizeDecks[name]);
 
       for (let i = 0; i < values.length; i++) {
         list.push(placeResource(list, band, values[i], sizes[i], id++));
       }
     }
 
-    const treasureBand = rng() < .5 ? 1 : 2;
-    const treasureCandidates = list.filter(resource => resource.band === treasureBand);
-    const treasure = treasureCandidates[randInt(0, treasureCandidates.length - 1)];
-    treasure.value = CONFIG.resources.treasureValue;
-    treasure.isTreasure = true;
+    const treasureBand = randInt(0, 2);
+    const treasure = placeResource(
+      list,
+      treasureBand,
+      CONFIG.resources.treasureValue,
+      CONFIG.resources.treasureSize,
+      id++,
+      true
+    );
+    list.push(treasure);
 
     for (let band = 0; band < 3; band++) {
       const knownCandidates = list.filter(resource => resource.band === band && !resource.isTreasure);
@@ -348,6 +449,36 @@
     }
 
     return list;
+  }
+
+  function scoreToken(resource) {
+    const stateClass = resource.owned ? ' owned' : resource.scoreKnown ? ' known' : '';
+    const stateLabel = resource.owned ? '取得済み' : resource.scoreKnown ? '点数判明' : '未判明';
+    return `<span class="score-token${stateClass}" aria-label="${resource.value}点 ${stateLabel}">${resource.value}</span>`;
+  }
+
+  function renderScoreBoard() {
+    if (!scoreBoardEl) return;
+
+    const rows = BAND_NAMES.map((name, band) => {
+      const items = resources
+        .filter(resource => !resource.isTreasure && resource.band === band)
+        .sort((a, b) => a.value - b.value)
+        .map(scoreToken)
+        .join('');
+      return `<div class="score-board-row">
+        <span class="score-board-label">${BAND_LABELS[band]}</span>
+        <div class="score-board-values">${items}</div>
+      </div>`;
+    }).join('');
+
+    const treasure = resources.find(resource => resource.isTreasure);
+    const special = treasure ? scoreToken(treasure) : '';
+    scoreBoardEl.innerHTML = `${rows}
+      <div class="score-board-row special">
+        <span class="score-board-label">特別</span>
+        <div class="score-board-values">${special}</div>
+      </div>`;
   }
 
   function coverageStats(resource) {
@@ -420,6 +551,7 @@
       if (!wasOwned && resource.owned) acquiredNow.push(resource);
     }
 
+    renderScoreBoard();
     if (acquiredNow.length) showAcquiredFeedback(acquiredNow);
   }
 
@@ -877,23 +1009,20 @@
     }
   }
 
-  function deckSummary(values) {
-    return values.slice().sort((a,b) => a-b).join(' / ');
-  }
-
   function renderDistributionPanel() {
     distributionContent.innerHTML = BAND_NAMES.map((name, i) => {
-      const deck = CONFIG.resources.decks[name];
+      const rule = CONFIG.resources.scoreBands[name];
+      const count = CONFIG.resources.counts[name];
       return `<div class="distribution-row">
-        <strong>${BAND_LABELS[i]} <small>5個</small></strong>
-        <span>通常候補 ${deckSummary(deck)}</span>
+        <strong>${BAND_LABELS[i]} <small>${count}個</small></strong>
+        <span>通常 ${rule.normalMin}〜${rule.normalMax} / 当たり下限 ${rule.hitMin} / 単発上限 ${rule.singleMax}</span>
       </div>`;
     }).join('') + `
       <div class="distribution-row treasure-row">
         <strong>特別埋蔵</strong>
-        <span>500×1（15個のうち1個・中層か下層・完全非公開）</span>
+        <span>500×1（全層のどこか・小8固定）</span>
       </div>
-      <p class="distribution-note">合計15個。各層5個で、位置だけ分かるコインは各層1個。サイズは小8・中12・大16で、各層は小2・中2・大1。30%で数字が見え、70%以上を塗ってSTARTへ接続すると取得。筆フェーズは650面積分を細・太で自由に使い、何本でも描ける。既にインクがある場所への重なりは消費しない。盤面比率は一般的なスマホ縦長比率9:19.5で固定。</p>`;
+      <p class="distribution-note">通常14個＋特別500の合計15個。通常点は10点刻みで全14個重複なし。通常・単発当たり・全体当たりがあり、当たりは毎回保証されず複数層で起こることもある。全体当たりは下限だけ上がり、単発当たりは1個だけ上限が広がる。サイズは上層=小2/中3/大1、中層=小2/中1/大2、下層=小1/中1/大1。30%で点数判明、70%以上を塗ってSTARTへ接続すると取得。</p>`;
   }
 
   function reset(useSameSeed) {
