@@ -6,8 +6,7 @@
     rows: 450,
     rounds: 4,
     brushAreaPerTurn: 650,
-    homeRadius: 10,
-    homeY: 0.80,
+    starterPuddle: { radius: 20 },
     brushRadii: { thin: 3, wide: 6 },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
@@ -137,6 +136,7 @@
   let seed = randomSeed();
   let rng = mulberry32(seed);
   let ink = new Set();
+  let starterInk = new Set();
   let connected = new Set();
   let resources = [];
   let score = 0;
@@ -186,10 +186,11 @@
     CONFIG.cols = Math.round(CONFIG.rows * 9 / 19.5);
   }
 
-  function home() {
+  function starterAnchor() {
+    const radius = CONFIG.starterPuddle.radius;
     return {
       x: Math.floor(CONFIG.cols / 2),
-      y: Math.floor(CONFIG.rows * CONFIG.homeY),
+      y: CONFIG.rows - 1 - Math.round(radius * .42),
     };
   }
 
@@ -222,6 +223,36 @@
         target
       );
     }
+  }
+
+  function createStarterPuddle() {
+    const target = new Set();
+    const anchor = starterAnchor();
+    const radius = CONFIG.starterPuddle.radius;
+    const bottom = CONFIG.rows - 1;
+
+    // A low, irregular pool that visibly continues through the bottom edge.
+    addDisk(anchor.x, bottom - 2, radius * .82, target);
+    addDisk(anchor.x - radius * .58, bottom - 4, radius * .48, target);
+    addDisk(anchor.x + radius * .58, bottom - 3, radius * .54, target);
+    addDisk(anchor.x - radius * .10, bottom - radius * .55, radius * .55, target);
+    addDisk(anchor.x + radius * .34, bottom - radius * .62, radius * .42, target);
+
+    // Small connected bumps keep the silhouette from reading as a clean semicircle.
+    const bumps = randInt(2, 3);
+    for (let i = 0; i < bumps; i++) {
+      const angle = rand(Math.PI * 1.08, Math.PI * 1.92);
+      const distance = rand(radius * .32, radius * .58);
+      addDisk(
+        anchor.x + Math.cos(angle) * distance,
+        bottom - radius * .42 + Math.sin(angle) * distance * .42,
+        radius * rand(.20, .30),
+        target
+      );
+    }
+
+    starterInk = target;
+    for (const k of starterInk) ink.add(k);
   }
 
   function splashPoint(cx, cy, minDistance, maxDistance) {
@@ -336,18 +367,18 @@
     const bandLo = band / 3 * CONFIG.rows;
     const bandHi = (band + 1) / 3 * CONFIG.rows;
     const margin = Math.ceil(radius + 8);
-    const h = home();
+    const anchor = starterAnchor();
     let x = CONFIG.cols / 2;
     let y = (bandLo + bandHi) / 2;
 
     for (let tries = 0; tries < 360; tries++) {
       x = rand(margin, Math.max(margin + 1, CONFIG.cols - margin));
       y = rand(bandLo + margin, bandHi - margin);
-      const tooCloseHome = Math.hypot(x - h.x, y - h.y) < CONFIG.resources.minHomeDistance + radius;
+      const tooCloseStarter = Math.hypot(x - anchor.x, y - anchor.y) < CONFIG.resources.minHomeDistance + radius;
       const overlaps = list.some(r =>
         Math.hypot(x - r.x, y - r.y) < radius + r.radius + CONFIG.resources.minGap
       );
-      if (!tooCloseHome && !overlaps) break;
+      if (!tooCloseStarter && !overlaps) break;
     }
 
     return {
@@ -537,16 +568,14 @@
   }
 
   function refreshConnected() {
-    const h = home();
     const queue = [];
     const active = new Set();
 
-    for (const k of ink) {
-      const p = parseKey(k);
-      if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + 3) {
-        active.add(k);
-        queue.push(k);
-      }
+    // Connectivity originates from the starter puddle itself, not an invisible point.
+    for (const k of starterInk) {
+      if (!ink.has(k)) continue;
+      active.add(k);
+      queue.push(k);
     }
 
     for (let i = 0; i < queue.length; i++) {
@@ -933,23 +962,6 @@
       );
     }
 
-    const h = home();
-    ctx.save();
-    ctx.translate((h.x+.5)*m.sx, (h.y+.5)*m.sy);
-    ctx.fillStyle = '#fffaf0';
-    ctx.strokeStyle = '#263d37';
-    ctx.lineWidth = 2 / camera.zoom;
-    ctx.beginPath();
-    ctx.arc(0,0, Math.max(14 / camera.zoom, CONFIG.homeRadius*m.sx), 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#263d37';
-    ctx.font = `700 ${11 / camera.zoom}px system-ui`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('START',0,0);
-    ctx.restore();
-
     for (const resource of resources) renderCoin(resource, m);
 
     ctx.restore();
@@ -999,7 +1011,7 @@
         <span>通常 ${rule.normalMin}〜${rule.normalMax} / 当たり下限 ${rule.hitMin} / 単発上限 ${rule.singleMax}</span>
       </div>`;
     }).join('') + `
-      <p class="distribution-note">通常14個。点数は10点刻みで全14個重複なし。通常・単発当たり・全体当たりがあり、当たりは毎回保証されず複数層で起こることもある。全体当たりは下限だけ上がり、単発当たりは1個だけ上限が広がる。サイズは上層=小2/中3/大1、中層=小2/中1/大2、下層=小1/中1/大1。30%で点数判明、70%以上を塗ってSTARTへ接続すると取得。</p>`;
+      <p class="distribution-note">通常14個。点数は10点刻みで全14個重複なし。通常・単発当たり・全体当たりがあり、当たりは毎回保証されず複数層で起こることもある。全体当たりは下限だけ上がり、単発当たりは1個だけ上限が広がる。サイズは上層=小2/中3/大1、中層=小2/中1/大2、下層=小1/中1/大1。30%で点数判明、70%以上を塗って起点のインク溜まりへ接続すると取得。</p>`;
   }
 
   function reset(useSameSeed) {
@@ -1007,6 +1019,7 @@
     rng = mulberry32(seed);
     syncBoardWidthToViewport();
     ink = new Set();
+    starterInk = new Set();
     connected = new Set();
     resources = createResources();
     score = 0;
@@ -1025,8 +1038,7 @@
     result.hidden = true;
     distributionPanel.hidden = true;
 
-    const h = home();
-    addDisk(h.x, h.y, CONFIG.homeRadius);
+    createStarterPuddle();
     refreshConnected();
     updateResources();
     updateHud();
