@@ -6,7 +6,7 @@
     rows: 450,
     rounds: 4,
     brushAreaPerTurn: 650,
-    starterPuddle: { radius: 20 },
+    starterPuddle: { radius: 30 },
     brushRadii: { thin: 3, wide: 6 },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
@@ -187,14 +187,14 @@
   }
 
   function starterAnchor() {
-    const radius = CONFIG.starterPuddle.radius;
-    return {
-      x: Math.floor(CONFIG.cols / 2),
-      y: CONFIG.rows - 1 - Math.round(radius * .42),
-    };
-  }
+  const radius = CONFIG.starterPuddle.radius;
+  return {
+    x: Math.floor(CONFIG.cols / 2),
+    y: CONFIG.rows - 1 - Math.round(radius * .20),
+  };
+}
 
-  function inBounds(x, y) {
+function inBounds(x, y) {
     return x >= 0 && x < CONFIG.cols && y >= 0 && y < CONFIG.rows;
   }
 
@@ -226,36 +226,49 @@
   }
 
   function createStarterPuddle() {
-    const target = new Set();
-    const anchor = starterAnchor();
-    const radius = CONFIG.starterPuddle.radius;
-    const bottom = CONFIG.rows - 1;
+  const target = new Set();
+  const anchor = starterAnchor();
+  const radius = CONFIG.starterPuddle.radius;
+  const edge = CONFIG.rows - 1;
+  const cx = anchor.x;
 
-    // A low, irregular pool that visibly continues through the bottom edge.
-    addDisk(anchor.x, bottom - 2, radius * .82, target);
-    addDisk(anchor.x - radius * .58, bottom - 4, radius * .48, target);
-    addDisk(anchor.x + radius * .58, bottom - 3, radius * .54, target);
-    addDisk(anchor.x - radius * .10, bottom - radius * .55, radius * .55, target);
-    addDisk(anchor.x + radius * .34, bottom - radius * .62, radius * .42, target);
+  // Treat this as a much larger ink island continuing below the board.
+  // Only its upper rim is visible, so it reads like a cropped coast rather than a mound.
+  addDisk(cx, edge + radius * .50, radius * .92, target);
+  addDisk(cx - radius * .34, edge + radius * .38, radius * .56, target);
+  addDisk(cx + radius * .32, edge + radius * .34, radius * .58, target);
 
-    // Small connected bumps keep the silhouette from reading as a clean semicircle.
-    const bumps = randInt(2, 3);
-    for (let i = 0; i < bumps; i++) {
-      const angle = rand(Math.PI * 1.08, Math.PI * 1.92);
-      const distance = rand(radius * .32, radius * .58);
-      addDisk(
-        anchor.x + Math.cos(angle) * distance,
-        bottom - radius * .42 + Math.sin(angle) * distance * .42,
-        radius * rand(.20, .30),
-        target
-      );
-    }
-
-    starterInk = target;
-    for (const k of starterInk) ink.add(k);
+  // Uneven overlapping lobes form the visible shoreline.
+  const rim = [
+    [-.43, .06, .30],
+    [-.25, -.05, .34],
+    [-.08, -.10, .31],
+    [ .10, -.07, .35],
+    [ .28,  .00, .30],
+    [ .43,  .08, .25],
+  ];
+  for (const [dx, dy, rr] of rim) {
+    addDisk(
+      cx + dx * radius + rand(-1.3, 1.3),
+      edge + dy * radius + rand(-1.0, 1.0),
+      rr * radius * rand(.92, 1.08),
+      target
+    );
   }
 
-  function splashPoint(cx, cy, minDistance, maxDistance) {
+  // A few tiny connected bulges break up the digital-looking smooth dome.
+  const nubs = randInt(3, 5);
+  for (let i = 0; i < nubs; i++) {
+    const x = cx + rand(-radius * .42, radius * .42);
+    const y = edge - rand(1.5, 5.5);
+    addDisk(x, y, rand(2.8, 4.6), target);
+  }
+
+  starterInk = target;
+  for (const k of starterInk) ink.add(k);
+}
+
+function splashPoint(cx, cy, minDistance, maxDistance) {
     const angle = rand(0, TAU);
     const distance = rand(minDistance, maxDistance);
     return { x: cx + Math.cos(angle) * distance, y: cy + Math.sin(angle) * distance };
