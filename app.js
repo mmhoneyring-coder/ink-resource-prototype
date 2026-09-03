@@ -449,17 +449,23 @@
     return CONFIG.brushRadii[penSize];
   }
 
-  function brushWidth() {
-    return activeBrushRadius() * 2 + 1;
-  }
-
   function stampBrush(p, radius = activeBrushRadius()) {
+    let spent = 0;
+    const maxSpend = Math.floor(brushRemaining + EPS);
+    if (maxSpend <= 0) return 0;
+
     for (let y = p.y - radius; y <= p.y + radius; y++) {
       for (let x = p.x - radius; x <= p.x + radius; x++) {
         if (!inBounds(x,y)) continue;
-        if ((x-p.x)**2 + (y-p.y)**2 <= radius*radius + 1) ink.add(key(x,y));
+        if ((x-p.x)**2 + (y-p.y)**2 > radius*radius + 1) continue;
+        const k = key(x,y);
+        if (ink.has(k)) continue;
+        if (spent >= maxSpend) return spent;
+        ink.add(k);
+        spent++;
       }
     }
+    return spent;
   }
 
   function extendBrush(to) {
@@ -468,25 +474,27 @@
     const stepDist = Math.hypot(to.x - from.x, to.y - from.y);
     if (stepDist < .35) return;
 
-    const width = brushWidth();
-    const maxDistance = brushRemaining / width;
-    const use = Math.min(stepDist, maxDistance);
     const ux = (to.x - from.x) / stepDist;
     const uy = (to.y - from.y) / stepDist;
-    const end = { x: from.x + ux * use, y: from.y + uy * use };
-    const steps = Math.max(1, Math.ceil(use / .55));
+    const steps = Math.max(1, Math.ceil(stepDist / .55));
+    let last = from;
+    let moved = false;
 
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      stampBrush({
-        x: Math.round(from.x + (end.x - from.x) * t),
-        y: Math.round(from.y + (end.y - from.y) * t),
-      });
+      const p = {
+        x: Math.round(from.x + ux * stepDist * t),
+        y: Math.round(from.y + uy * stepDist * t),
+      };
+      const spent = stampBrush(p);
+      brushRemaining = Math.max(0, brushRemaining - spent);
+      last = p;
+      moved = true;
+      if (brushRemaining <= EPS) break;
     }
 
-    drawing.last = end;
-    drawing.moved = true;
-    brushRemaining = Math.max(0, brushRemaining - use * width);
+    drawing.last = last;
+    drawing.moved = drawing.moved || moved;
     updateHud();
     render();
 
@@ -884,7 +892,7 @@
         <strong>特別埋蔵</strong>
         <span>500×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ。30%で数字が見え、70%以上を塗ってSTARTへ接続すると取得。筆フェーズは525面積分を細・太で自由に使い、何本でも描ける。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ。30%で数字が見え、70%以上を塗ってSTARTへ接続すると取得。筆フェーズは525面積分を細・太で自由に使い、何本でも描ける。既にインクがある場所への重なりは消費しない。</p>`;
   }
 
   function reset(useSameSeed) {
