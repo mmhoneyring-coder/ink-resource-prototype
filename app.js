@@ -813,7 +813,7 @@
 
     for (const k of ink) {
       const p = parseKey(k);
-      ctx.fillStyle = connected.has(k) ? '#1f2927' : '#565b59';
+      ctx.fillStyle = connected.has(k) ? '#1f2927' : '#525755';
       ctx.fillRect(
         Math.floor(p.x * m.sx),
         Math.floor(p.y * m.sy),
