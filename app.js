@@ -2,10 +2,10 @@
   'use strict';
 
   const CONFIG = {
-    cols: 260,
+    cols: 208,
     rows: 450,
     rounds: 4,
-    brushAreaPerTurn: 525,
+    brushAreaPerTurn: 650,
     homeRadius: 10,
     homeY: 0.80,
     brushRadii: { thin: 3, wide: 6 },
@@ -32,14 +32,16 @@
       minGap: 10,
       treasureValue: 500,
       decks: {
-        upper: [160, 240, 300],
-        middle: [80, 120, 160],
-        lower: [30, 50, 80],
+        upper: [160, 200, 240, 270, 300],
+        middle: [80, 100, 120, 140, 160],
+        lower: [30, 40, 50, 60, 80],
       },
       sizes: [
-        { name: 'small', radius: 9 },
-        { name: 'medium', radius: 14 },
-        { name: 'large', radius: 19 },
+        { name: 'small', radius: 8 },
+        { name: 'small', radius: 8 },
+        { name: 'medium', radius: 12 },
+        { name: 'medium', radius: 12 },
+        { name: 'large', radius: 16 },
       ],
     },
   };
@@ -139,9 +141,7 @@
   }
 
   function syncBoardWidthToViewport() {
-    const rect = boardWrap.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    CONFIG.cols = Math.max(180, Math.round(CONFIG.rows * rect.width / rect.height));
+    CONFIG.cols = Math.round(CONFIG.rows * 9 / 19.5);
   }
 
   function home() {
@@ -328,22 +328,25 @@
       const name = BAND_NAMES[band];
       const values = shuffled(CONFIG.resources.decks[name]);
       const sizes = shuffled(CONFIG.resources.sizes);
-      const bandResources = [];
 
       for (let i = 0; i < values.length; i++) {
-        const resource = placeResource(list, band, values[i], sizes[i], id++);
-        list.push(resource);
-        bandResources.push(resource);
+        list.push(placeResource(list, band, values[i], sizes[i], id++));
       }
+    }
 
-      const known = bandResources[randInt(0, bandResources.length - 1)];
+    const treasureBand = rng() < .5 ? 1 : 2;
+    const treasureCandidates = list.filter(resource => resource.band === treasureBand);
+    const treasure = treasureCandidates[randInt(0, treasureCandidates.length - 1)];
+    treasure.value = CONFIG.resources.treasureValue;
+    treasure.isTreasure = true;
+
+    for (let band = 0; band < 3; band++) {
+      const knownCandidates = list.filter(resource => resource.band === band && !resource.isTreasure);
+      const known = knownCandidates[randInt(0, knownCandidates.length - 1)];
       known.initiallyKnown = true;
       known.positionKnown = true;
     }
 
-    const treasureBand = rng() < .5 ? 1 : 2;
-    const treasureSize = CONFIG.resources.sizes[randInt(0, CONFIG.resources.sizes.length - 1)];
-    list.push(placeResource(list, treasureBand, CONFIG.resources.treasureValue, treasureSize, id++, true));
     return list;
   }
 
@@ -864,6 +867,7 @@
     inkFillEl.style.height = `${ratio * 100}%`;
     brushRemainingEl.textContent = String(Math.ceil(brushRemaining));
     penLoadEl.setAttribute('aria-valuenow', String(Math.ceil(brushRemaining)));
+    penLoadEl.setAttribute('aria-valuemax', String(CONFIG.brushAreaPerTurn));
 
     if (gameOver) {
       hintEl.textContent = '終了';
@@ -882,17 +886,16 @@
   function renderDistributionPanel() {
     distributionContent.innerHTML = BAND_NAMES.map((name, i) => {
       const deck = CONFIG.resources.decks[name];
-      const avg = deck.reduce((sum, value) => sum + value, 0) / deck.length;
       return `<div class="distribution-row">
-        <strong>${BAND_LABELS[i]} <small>3個 / 平均${avg.toFixed(0)}</small></strong>
-        <span>${deckSummary(deck)}</span>
+        <strong>${BAND_LABELS[i]} <small>5個</small></strong>
+        <span>通常候補 ${deckSummary(deck)}</span>
       </div>`;
     }).join('') + `
       <div class="distribution-row treasure-row">
         <strong>特別埋蔵</strong>
-        <span>500×1（中層か下層・完全非公開）</span>
+        <span>500×1（15個のうち1個・中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ。30%で数字が見え、70%以上を塗ってSTARTへ接続すると取得。筆フェーズは525面積分を細・太で自由に使い、何本でも描ける。既にインクがある場所への重なりは消費しない。</p>`;
+      <p class="distribution-note">合計15個。各層5個で、位置だけ分かるコインは各層1個。サイズは小8・中12・大16で、各層は小2・中2・大1。30%で数字が見え、70%以上を塗ってSTARTへ接続すると取得。筆フェーズは650面積分を細・太で自由に使い、何本でも描ける。既にインクがある場所への重なりは消費しない。盤面比率は一般的なスマホ縦長比率9:19.5で固定。</p>`;
   }
 
   function reset(useSameSeed) {
