@@ -201,21 +201,6 @@
     </div>
   </main>
 
-  <script>
-    (() => {
-      const board = document.getElementById('board');
-      const ignoreSecondaryPointer = event => {
-        if (!event.isPrimary) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        }
-      };
-      board.addEventListener('pointerdown', ignoreSecondaryPointer, true);
-      board.addEventListener('pointermove', ignoreSecondaryPointer, true);
-      board.addEventListener('pointerup', ignoreSecondaryPointer, true);
-      board.addEventListener('pointercancel', ignoreSecondaryPointer, true);
-    })();
-  </script>
   <script src="app.js"></script>
 </body>
 </html>
