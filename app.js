@@ -654,17 +654,15 @@
     const x = (resource.x + .5) * m.sx;
     const y = (resource.y + .5) * m.sy;
     const radius = resource.radius * m.sx;
-    const spread = 16 / camera.zoom;
-    const inner = Math.max(0, radius - 7 / camera.zoom);
+    const spread = 8 / camera.zoom;
     const outer = radius + spread;
 
     ctx.save();
     ctx.translate(x, y);
-    const glow = ctx.createRadialGradient(0, 0, inner, 0, 0, outer);
-    glow.addColorStop(0, 'rgba(255,255,255,0)');
-    glow.addColorStop(.34, 'rgba(255,255,255,.16)');
-    glow.addColorStop(.55, 'rgba(255,255,255,.42)');
-    glow.addColorStop(.72, 'rgba(255,255,255,.24)');
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, outer);
+    glow.addColorStop(0, 'rgba(255,255,255,.18)');
+    glow.addColorStop(.56, 'rgba(255,255,255,.14)');
+    glow.addColorStop(.78, 'rgba(255,255,255,.08)');
     glow.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
@@ -733,7 +731,7 @@
       return;
     }
 
-    if (resource.coverage >= CONFIG.acquireCoverage) renderCoinHalo(resource, m);
+    renderCoinHalo(resource, m);
 
     const r2 = resource.radius * resource.radius;
     const minX = Math.max(0, Math.floor(resource.x - resource.radius));
