@@ -1,41 +1,38 @@
 (() => {
   'use strict';
 
-  // Provisional play-test: sparse coins, cost-limited splashes, shorter horizontal world.
+  // Provisional four-round play-test: splash -> brush, repeated four times.
   const CONFIG = {
-    cols: 420,
+    cols: 260, // Recomputed from the visible phone board width at reset.
     rows: 450,
-    totalInk: 100,
-    splashInkCost: 15,
-    brushInkPerCell: 0.115,
+    rounds: 4,
+    brushAreaPerTurn: 525,
     homeRadius: 10,
     homeY: 0.80,
-    brushRadius: 3,
-    brushMaxLength: 90,
     brushStartPadding: 7,
+    brushRadii: {
+      thin: 3,
+      wide: 6,
+    },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
     zoom: {
-      min: 0.82,
+      min: 1,
       default: 1,
       max: 1.35,
       step: 0.10,
     },
-    panStep: 0.18,
-    panHoldStep: 0.035,
-    panHoldDelay: 260,
-    panHoldEvery: 55,
     splash: {
       coreCount: [4, 6],
       dropletCount: [10, 15],
       speckCount: [8, 12],
-      coreRadius: [15, 22],
-      dropletRadius: [7, 12],
-      speckRadius: [3, 6],
-      spread: 125,
-      farSpread: 170,
-      aimDrift: [12, 32],
-      minIslandArea: 38,
+      coreRadius: [14, 20],
+      dropletRadius: [6, 11],
+      speckRadius: [3, 5],
+      spread: 115,
+      farSpread: 155,
+      aimDrift: [10, 28],
+      minIslandArea: 30,
       radialDirections: [2, 3],
       radialJitter: 1.0,
       radialBias: {
@@ -48,11 +45,11 @@
       minHomeDistance: 34,
       minGap: 10,
       positionKnownPerBand: 1,
-      treasureValue: 50,
+      treasureValue: 500,
       decks: {
-        upper: [16, 24, 30],
-        middle: [8, 12, 16],
-        lower: [3, 5, 8],
+        upper: [160, 240, 300],
+        middle: [80, 120, 160],
+        lower: [30, 50, 80],
       },
       sizes: [
         { name: 'small', radius: 9 },
@@ -67,13 +64,11 @@
   const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
   const TAU = Math.PI * 2;
   const TAP_MOVE_PX = 5;
-  const MIN_ACTION_INK = .05;
   const COLORS = {
     position: '#60777c',
     positionSoft: 'rgba(96,119,124,.30)',
     partial: '#60777c',
     partialTreasure: '#60777c',
-    revealed: '#60777c',
     revealedDark: '#344c51',
     revealedText: '#e8eceb',
     acquired: '#f0c64f',
@@ -86,13 +81,14 @@
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('boardWrap');
   const scoreEl = document.getElementById('score');
-  const inkEl = document.getElementById('inkRemaining');
+  const roundEl = document.getElementById('inkRemaining');
+  const roundLabelEl = roundEl.previousElementSibling;
   const ownedEl = document.getElementById('ownedCount');
   const hintEl = document.getElementById('hint');
   const splashBtn = document.getElementById('splashBtn');
   const splashLeftEl = document.getElementById('splashLeft');
-  const brushBtn = document.getElementById('brushBtn');
-  const moveBtn = document.getElementById('moveBtn');
+  const thinBtn = document.getElementById('brushBtn');
+  const wideBtn = document.getElementById('moveBtn');
   const newBtn = document.getElementById('newBtn');
   const zoomInBtn = document.getElementById('zoomIn');
   const zoomOutBtn = document.getElementById('zoomOut');
@@ -109,23 +105,31 @@
   const retryBtn = document.getElementById('retryBtn');
   const nextBtn = document.getElementById('nextBtn');
 
-  let mode = 'splash';
+  // Reuse the old movement button as the wide-brush selector so the prototype
+  // stays a one-file experiment. Horizontal board movement is removed.
+  roundLabelEl.textContent = 'ラウンド';
+  thinBtn.innerHTML = '<span class="action-icon">╱</span><span>細筆 <small class="action-cost">525</small></span>';
+  thinBtn.setAttribute('aria-label', '細筆');
+  wideBtn.innerHTML = '<span class="action-icon">━</span><span>太筆 <small class="action-cost">525</small></span>';
+  wideBtn.setAttribute('aria-label', '太筆');
+  if (viewLeftBtn) viewLeftBtn.hidden = true;
+  if (viewRightBtn) viewRightBtn.hidden = true;
+
   let seed = randomSeed();
   let rng = mulberry32(seed);
   let ink = new Set();
   let connected = new Set();
   let resources = [];
   let score = 0;
-  let inkRemaining = CONFIG.totalInk;
+  let round = 1;
+  let phase = 'splash';
+  let penSize = 'thin';
   let drawing = null;
-  let moveDrag = null;
   let gameOver = false;
   let pendingSplash = null;
   let gesture = null;
   let feedback = null;
   let feedbackTimer = null;
-  let panDelayTimer = null;
-  let panRepeatTimer = null;
 
   const pointers = new Map();
   const camera = { zoom: CONFIG.zoom.default, tx: 0, ty: 0 };
@@ -156,6 +160,12 @@
       [out[i], out[j]] = [out[j], out[i]];
     }
     return out;
+  }
+
+  function syncBoardWidthToViewport() {
+    const rect = boardWrap.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    CONFIG.cols = Math.max(180, Math.round(CONFIG.rows * rect.width / rect.height));
   }
 
   function home() {
@@ -263,12 +273,7 @@
   }
 
   function splashAt(cx, cy) {
-    if (gameOver) return;
-    if (inkRemaining + 1e-9 < CONFIG.splashInkCost) {
-      hintEl.textContent = 'スプラッシュ分のインクがないので、筆で使い切る';
-      setMode('brush');
-      return;
-    }
+    if (gameOver || phase !== 'splash') return;
 
     const splashInk = new Set();
     const core = randInt(...CONFIG.splash.coreCount);
@@ -282,7 +287,7 @@
         impact.x,
         impact.y,
         i === 0 ? 4 : 12,
-        i === 0 ? 28 : CONFIG.splash.spread * .58,
+        i === 0 ? 25 : CONFIG.splash.spread * .58,
         directions,
         CONFIG.splash.radialBias.core
       );
@@ -292,7 +297,7 @@
       const p = splashPointBiased(
         impact.x,
         impact.y,
-        20,
+        18,
         CONFIG.splash.spread,
         directions,
         CONFIG.splash.radialBias.droplet
@@ -303,7 +308,7 @@
       const p = splashPointBiased(
         impact.x,
         impact.y,
-        30,
+        27,
         CONFIG.splash.farSpread,
         directions,
         CONFIG.splash.radialBias.speck
@@ -316,7 +321,10 @@
 
     refreshConnected();
     updateResources();
-    spendInk(CONFIG.splashInkCost);
+    phase = 'brush';
+    updateHud();
+    updateActionAvailability();
+    render();
   }
 
   function placeResource(list, band, value, size, id, isTreasure = false) {
@@ -329,7 +337,7 @@
     let y = (bandLo + bandHi) / 2;
 
     for (let tries = 0; tries < 360; tries++) {
-      x = rand(margin, CONFIG.cols - margin);
+      x = rand(margin, Math.max(margin + 1, CONFIG.cols - margin));
       y = rand(bandLo + margin, bandHi - margin);
       const tooCloseHome = Math.hypot(x - h.x, y - h.y) < CONFIG.resources.minHomeDistance + radius;
       const overlaps = list.some(r =>
@@ -420,25 +428,14 @@
     };
   }
 
-  function showFeedback(type, items) {
+  function showAcquiredFeedback(items) {
     if (!items.length) return;
     if (feedbackTimer) clearTimeout(feedbackTimer);
-
-    if (type === 'acquired') {
-      const total = items.reduce((sum, item) => sum + item.value, 0);
-      feedback = {
-        type,
-        title: items.length === 1 ? '取得' : `${items.length}個取得`,
-        detail: `+${total}`,
-      };
-    } else {
-      feedback = {
-        type,
-        title: '点数判明',
-        detail: items.length === 1 ? String(items[0].value) : `${items.length}個`,
-      };
-    }
-
+    const total = items.reduce((sum, item) => sum + item.value, 0);
+    feedback = {
+      title: items.length === 1 ? '取得' : `${items.length}個取得`,
+      detail: `+${total}`,
+    };
     feedbackTimer = setTimeout(() => {
       feedback = null;
       feedbackTimer = null;
@@ -447,11 +444,9 @@
   }
 
   function updateResources() {
-    const revealedNow = [];
     const acquiredNow = [];
 
     for (const resource of resources) {
-      const wasScoreKnown = resource.scoreKnown;
       const wasOwned = resource.owned;
       const stats = coverageStats(resource);
       resource.coverage = stats.coverage;
@@ -472,11 +467,9 @@
       }
 
       if (!wasOwned && resource.owned) acquiredNow.push(resource);
-      else if (!wasScoreKnown && resource.scoreKnown) revealedNow.push(resource);
     }
 
-    if (acquiredNow.length) showFeedback('acquired', acquiredNow);
-    else if (revealedNow.length) showFeedback('revealed', revealedNow);
+    if (acquiredNow.length) showAcquiredFeedback(acquiredNow);
   }
 
   function refreshConnected() {
@@ -502,93 +495,110 @@
     connected = active;
   }
 
+  function activeBrushRadius() {
+    return CONFIG.brushRadii[penSize];
+  }
+
   function canStartBrush(p) {
+    const radius = activeBrushRadius();
     const h = home();
-    if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + CONFIG.brushRadius + CONFIG.brushStartPadding) {
+    if (Math.hypot(p.x - h.x, p.y - h.y) <= CONFIG.homeRadius + radius + CONFIG.brushStartPadding) {
       return true;
     }
+
     for (let yy = p.y - CONFIG.brushStartPadding; yy <= p.y + CONFIG.brushStartPadding; yy++) {
       for (let xx = p.x - CONFIG.brushStartPadding; xx <= p.x + CONFIG.brushStartPadding; xx++) {
         if (connected.has(key(xx,yy))) return true;
       }
     }
-    return false;
+
+    return resources.some(resource =>
+      resource.positionKnown &&
+      Math.hypot(p.x - resource.x, p.y - resource.y) <= resource.radius + radius + CONFIG.brushStartPadding
+    );
   }
 
-  function stampBrush(p, target) {
-    const r = CONFIG.brushRadius;
+  function stampBrushLimited(p, target) {
+    const r = activeBrushRadius();
+    const limit = CONFIG.brushAreaPerTurn;
     for (let y = p.y - r; y <= p.y + r; y++) {
       for (let x = p.x - r; x <= p.x + r; x++) {
         if (!inBounds(x,y)) continue;
-        if ((x-p.x)**2 + (y-p.y)**2 <= r*r + 1) target.add(key(x,y));
+        if ((x-p.x)**2 + (y-p.y)**2 > r*r + 1) continue;
+        const k = key(x,y);
+        if (target.has(k)) continue;
+        if (target.size >= limit) return false;
+        target.add(k);
       }
     }
+    return target.size < limit;
   }
 
   function extendBrush(to) {
-    if (!drawing) return;
+    if (!drawing || drawing.cells.size >= CONFIG.brushAreaPerTurn) return;
     const from = drawing.last;
     const stepDist = Math.hypot(to.x - from.x, to.y - from.y);
     if (stepDist < .5) return;
 
-    const maxByInk = inkRemaining / CONFIG.brushInkPerCell;
-    const allowed = Math.min(CONFIG.brushMaxLength, maxByInk) - drawing.length;
-    if (allowed <= 0) return;
-
-    const use = Math.min(stepDist, allowed);
     const ux = (to.x - from.x) / stepDist;
     const uy = (to.y - from.y) / stepDist;
-    const end = { x: from.x + ux * use, y: from.y + uy * use };
-    const steps = Math.max(1, Math.ceil(use / .65));
+    const steps = Math.max(1, Math.ceil(stepDist / .65));
+    let last = from;
+    let usedDistance = 0;
+
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      stampBrush({
-        x: Math.round(from.x + (end.x - from.x) * t),
-        y: Math.round(from.y + (end.y - from.y) * t),
-      }, drawing.cells);
+      const p = {
+        x: Math.round(from.x + ux * stepDist * t),
+        y: Math.round(from.y + uy * stepDist * t),
+      };
+      const before = drawing.cells.size;
+      const hasRoom = stampBrushLimited(p, drawing.cells);
+      if (drawing.cells.size > before) {
+        last = p;
+        usedDistance = stepDist * t;
+      }
+      if (!hasRoom) break;
     }
-    drawing.length += use;
-    drawing.last = end;
+
+    drawing.length += usedDistance;
+    drawing.last = last;
     updateHud();
   }
 
   function finishBrush() {
     if (!drawing) return;
-    if (drawing.length >= .5) {
-      const cost = Math.min(inkRemaining, drawing.length * CONFIG.brushInkPerCell);
-      for (const k of drawing.cells) ink.add(k);
+    if (drawing.length < .5) {
       drawing = null;
-      refreshConnected();
-      updateResources();
-      spendInk(cost);
+      updateHud();
+      render();
       return;
     }
+
+    for (const k of drawing.cells) ink.add(k);
     drawing = null;
-    updateHud();
-    render();
-  }
+    refreshConnected();
+    updateResources();
 
-  function projectedInk() {
-    const previewCost = drawing ? drawing.length * CONFIG.brushInkPerCell : 0;
-    return Math.max(0, inkRemaining - previewCost);
-  }
-
-  function spendInk(amount) {
-    if (gameOver) return;
-    inkRemaining = Math.max(0, inkRemaining - amount);
-    if (inkRemaining < MIN_ACTION_INK) inkRemaining = 0;
-
-    if (inkRemaining <= 0) {
+    if (round >= CONFIG.rounds) {
       gameOver = true;
       updateHud();
+      updateActionAvailability();
       render();
       setTimeout(showResult, 220);
       return;
     }
 
+    round++;
+    phase = 'splash';
     updateHud();
     updateActionAvailability();
     render();
+  }
+
+  function projectedBrushRemaining() {
+    if (!drawing) return CONFIG.brushAreaPerTurn;
+    return Math.max(0, CONFIG.brushAreaPerTurn - drawing.cells.size);
   }
 
   function showResult() {
@@ -597,27 +607,12 @@
     result.hidden = false;
   }
 
-  function setMode(next) {
-    if (gameOver) return;
-    const splashUnavailable = inkRemaining + 1e-9 < CONFIG.splashInkCost;
-    if (next === 'splash' && splashUnavailable) {
-      mode = 'brush';
-    } else {
-      mode = next;
-    }
-
-    if (mode === 'splash') {
-      hintEl.textContent = `スプラッシュ 1回${CONFIG.splashInkCost}インク・残りインクで使用`;
-    } else if (mode === 'brush') {
-      hintEl.textContent = '筆はSTARTか、つながっているインクから開始';
-    } else {
-      hintEl.textContent = 'ドラッグで盤面を移動・2本指で拡大/縮小';
-    }
-
-    splashBtn.classList.toggle('active', mode === 'splash');
-    brushBtn.classList.toggle('active', mode === 'brush');
-    moveBtn.classList.toggle('active', mode === 'move');
+  function selectPen(next) {
+    if (gameOver || phase !== 'brush') return;
+    penSize = next;
     updateActionAvailability();
+    updateHud();
+    render();
   }
 
   function resizeCanvas() {
@@ -632,9 +627,9 @@
 
   function boardMetrics() {
     const rect = boardWrap.getBoundingClientRect();
-    const worldH = rect.height;
-    const scale = worldH / CONFIG.rows;
+    const scale = Math.min(rect.width / CONFIG.cols, rect.height / CONFIG.rows);
     const worldW = CONFIG.cols * scale;
+    const worldH = CONFIG.rows * scale;
     return {
       w: rect.width,
       h: rect.height,
@@ -651,13 +646,11 @@
     const scaledH = m.worldH * camera.zoom;
     camera.tx = scaledW <= m.w ? (m.w - scaledW) / 2 : clamp(camera.tx, m.w - scaledW, 0);
     camera.ty = scaledH <= m.h ? (m.h - scaledH) / 2 : clamp(camera.ty, m.h - scaledH, 0);
-    updatePanButtons();
   }
 
   function centerCamera() {
     const m = boardMetrics();
-    const h = home();
-    camera.tx = m.w / 2 - (h.x + .5) * m.sx * camera.zoom;
+    camera.tx = (m.w - m.worldW * camera.zoom) / 2;
     camera.ty = (m.h - m.worldH * camera.zoom) / 2;
     clampCamera();
   }
@@ -666,7 +659,6 @@
     zoomResetBtn.textContent = `${Math.round(camera.zoom * 100)}%`;
     zoomOutBtn.disabled = camera.zoom <= CONFIG.zoom.min + .001;
     zoomInBtn.disabled = camera.zoom >= CONFIG.zoom.max - .001;
-    updatePanButtons();
   }
 
   function zoomTo(nextZoom, cx = boardWrap.clientWidth / 2, cy = boardWrap.clientHeight / 2) {
@@ -686,40 +678,6 @@
     centerCamera();
     updateZoomLabel();
     render();
-  }
-
-  function panCamera(direction, fraction = CONFIG.panStep) {
-    const m = boardMetrics();
-    camera.tx -= direction * m.w * fraction;
-    clampCamera();
-    render();
-  }
-
-  function stopPanHold() {
-    if (panDelayTimer) clearTimeout(panDelayTimer);
-    if (panRepeatTimer) clearInterval(panRepeatTimer);
-    panDelayTimer = null;
-    panRepeatTimer = null;
-  }
-
-  function startPanHold(direction, event) {
-    if (event) event.preventDefault();
-    stopPanHold();
-    panCamera(direction);
-    panDelayTimer = setTimeout(() => {
-      panDelayTimer = null;
-      panRepeatTimer = setInterval(() => {
-        panCamera(direction, CONFIG.panHoldStep);
-      }, CONFIG.panHoldEvery);
-    }, CONFIG.panHoldDelay);
-  }
-
-  function updatePanButtons() {
-    if (!viewLeftBtn || !viewRightBtn) return;
-    const m = boardMetrics();
-    const minTx = m.w - m.worldW * camera.zoom;
-    viewLeftBtn.disabled = camera.tx >= -1;
-    viewRightBtn.disabled = camera.tx <= minTx + 1;
   }
 
   function pointerToCell(event) {
@@ -823,21 +781,11 @@
       ctx.beginPath();
       ctx.arc(0,0,radius,0,TAU);
       ctx.fill();
-
       ctx.fillStyle = COLORS.acquiredDark;
       ctx.font = `850 ${clamp(radius * .65, 11 / camera.zoom, 22 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(String(resource.value),0,.5 / camera.zoom);
-
-      const markR = 8 / camera.zoom;
-      ctx.fillStyle = COLORS.acquiredDark;
-      ctx.beginPath();
-      ctx.arc(radius * .72, -radius * .72, markR, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = '#fffaf0';
-      ctx.font = `900 ${11 / camera.zoom}px system-ui`;
-      ctx.fillText('✓', radius * .72, -radius * .72 + .3 / camera.zoom);
       ctx.restore();
       return;
     }
@@ -851,7 +799,6 @@
       renderCoinHalo(resource, m, 'strong');
     }
 
-    // Coin surface is visible only where ink has touched it.
     const r2 = resource.radius * resource.radius;
     const minX = Math.max(0, Math.floor(resource.x - resource.radius));
     const maxX = Math.min(CONFIG.cols - 1, Math.ceil(resource.x + resource.radius));
@@ -878,11 +825,9 @@
       ctx.font = `850 ${clamp(radius * .56, 11 / camera.zoom, 20 / camera.zoom)}px system-ui`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-
       ctx.globalAlpha = .34;
       ctx.fillStyle = '#ffffff';
       ctx.fillText(text, 0, textY - lift);
-
       ctx.globalAlpha = 1;
       ctx.shadowColor = 'rgba(18,31,34,.55)';
       ctx.shadowBlur = 2.2 / camera.zoom;
@@ -896,32 +841,26 @@
 
   function renderFeedback(m) {
     if (!feedback) return;
-    const acquired = feedback.type === 'acquired';
-    const bg = acquired ? COLORS.acquired : COLORS.revealedDark;
-    const fg = acquired ? COLORS.acquiredDark : COLORS.revealedText;
-    const title = feedback.title;
-    const detail = feedback.detail;
     const centerX = m.w / 2;
     const top = 54;
     const width = Math.min(180, m.w - 40);
     const height = 44;
 
     ctx.save();
-    ctx.fillStyle = bg;
+    ctx.fillStyle = COLORS.acquired;
     ctx.shadowColor = 'rgba(0,0,0,.20)';
     ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.roundRect(centerX - width / 2, top, width, height, 13);
     ctx.fill();
     ctx.shadowColor = 'transparent';
-
-    ctx.fillStyle = fg;
+    ctx.fillStyle = COLORS.acquiredDark;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = '800 12px system-ui';
-    ctx.fillText(title, centerX - 18, top + height / 2);
+    ctx.fillText(feedback.title, centerX - 18, top + height / 2);
     ctx.font = '900 20px system-ui';
-    ctx.fillText(detail, centerX + 42, top + height / 2);
+    ctx.fillText(feedback.detail, centerX + 42, top + height / 2);
     ctx.restore();
   }
 
@@ -984,32 +923,31 @@
     renderFeedback(m);
   }
 
-  function formatInk(value) {
-    const rounded = Math.max(0, value);
-    return rounded >= 10 ? rounded.toFixed(1).replace(/\.0$/, '') : rounded.toFixed(1);
-  }
-
   function updateActionAvailability() {
-    const noSplash = inkRemaining + 1e-9 < CONFIG.splashInkCost;
-    splashBtn.disabled = gameOver || noSplash;
-    brushBtn.disabled = gameOver || inkRemaining <= 0;
-    moveBtn.disabled = gameOver;
-    splashLeftEl.textContent = `${CONFIG.splashInkCost} ink`;
+    splashBtn.disabled = gameOver || phase !== 'splash';
+    thinBtn.disabled = gameOver || phase !== 'brush';
+    wideBtn.disabled = gameOver || phase !== 'brush';
 
-    if (splashBtn.disabled && mode === 'splash' && !gameOver) {
-      mode = 'brush';
-      splashBtn.classList.remove('active');
-      brushBtn.classList.add('active');
-      moveBtn.classList.remove('active');
-      hintEl.textContent = '筆はSTARTか、つながっているインクから開始';
-    }
+    splashBtn.classList.toggle('active', phase === 'splash');
+    thinBtn.classList.toggle('active', phase === 'brush' && penSize === 'thin');
+    wideBtn.classList.toggle('active', phase === 'brush' && penSize === 'wide');
+
+    splashLeftEl.textContent = `${round}/${CONFIG.rounds}`;
   }
 
   function updateHud() {
     scoreEl.textContent = score;
-    inkEl.textContent = formatInk(projectedInk());
+    roundEl.textContent = `${round}/${CONFIG.rounds}`;
     ownedEl.textContent = resources.filter(r => r.owned).length;
-    updateActionAvailability();
+
+    if (gameOver) {
+      hintEl.textContent = '終了';
+    } else if (phase === 'splash') {
+      hintEl.textContent = `ラウンド${round}：スプラッシュを1回`;
+    } else {
+      const penLabel = penSize === 'thin' ? '細筆' : '太筆';
+      hintEl.textContent = `ラウンド${round}：${penLabel}　残り${projectedBrushRemaining()} / ${CONFIG.brushAreaPerTurn}`;
+    }
   }
 
   function deckSummary(values) {
@@ -1021,27 +959,29 @@
       const deck = CONFIG.resources.decks[name];
       const avg = deck.reduce((sum, value) => sum + value, 0) / deck.length;
       return `<div class="distribution-row">
-        <strong>${BAND_LABELS[i]} <small>3個 / 平均${avg.toFixed(1)}</small></strong>
+        <strong>${BAND_LABELS[i]} <small>3個 / 平均${avg.toFixed(0)}</small></strong>
         <span>${deckSummary(deck)}</span>
       </div>`;
     }).join('') + `
       <div class="distribution-row treasure-row">
         <strong>特別埋蔵</strong>
-        <span>50×1（中層か下層・完全非公開）</span>
+        <span>500×1（中層か下層・完全非公開）</span>
       </div>
-      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。青灰はインクが当たった部分、30%で浮き出す数字、70%まで露出すると白いハロー、金は取得済み。</p>`;
+      <p class="distribution-note">通常9個＋お宝1個。各層は位置だけ分かるコイン1個、完全非公開2個。サイズは大・中・小を各層に1つずつ置き、点数とは独立。30%で数字が見え、70%以上を塗ってSTARTへ接続すると取得。未接続のインクは盤面に残る。</p>`;
   }
 
   function reset(useSameSeed) {
     if (!useSameSeed) seed = randomSeed();
     rng = mulberry32(seed);
+    syncBoardWidthToViewport();
     ink = new Set();
     connected = new Set();
     resources = createResources();
     score = 0;
-    inkRemaining = CONFIG.totalInk;
+    round = 1;
+    phase = 'splash';
+    penSize = 'thin';
     drawing = null;
-    moveDrag = null;
     pendingSplash = null;
     gesture = null;
     pointers.clear();
@@ -1049,7 +989,6 @@
     feedback = null;
     if (feedbackTimer) clearTimeout(feedbackTimer);
     feedbackTimer = null;
-    stopPanHold();
     result.hidden = true;
     distributionPanel.hidden = true;
 
@@ -1058,8 +997,9 @@
     refreshConnected();
     updateResources();
     updateHud();
+    updateActionAvailability();
     resetCamera();
-    setMode('splash');
+    renderDistributionPanel();
     render();
   }
 
@@ -1073,7 +1013,6 @@
 
     pendingSplash = null;
     drawing = null;
-    moveDrag = null;
     gesture = {
       distance,
       zoom: camera.zoom,
@@ -1095,19 +1034,8 @@
     }
     if (pointers.size !== 1) return;
 
-    if (mode === 'move') {
-      moveDrag = {
-        pointerId: event.pointerId,
-        clientX: event.clientX,
-        clientY: event.clientY,
-        tx: camera.tx,
-        ty: camera.ty,
-      };
-      return;
-    }
-
     const p = pointerToCell(event);
-    if (mode === 'splash') {
+    if (phase === 'splash') {
       pendingSplash = {
         pointerId: event.pointerId,
         clientX: event.clientX,
@@ -1115,12 +1043,14 @@
       };
       return;
     }
+
     if (!canStartBrush(p)) {
-      hintEl.textContent = '筆はSTARTか、つながっているインクから開始';
+      hintEl.textContent = '筆はSTART・接続済みインク・発見済みコインから開始';
       return;
     }
+
     drawing = { pointerId: event.pointerId, last: p, length: 0, cells: new Set() };
-    stampBrush(p, drawing.cells);
+    stampBrushLimited(p, drawing.cells);
     updateHud();
     render();
   });
@@ -1136,7 +1066,6 @@
       const my = (points[0].y + points[1].y) / 2 - rect.top;
       const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) || 1;
       const zoom = clamp(gesture.zoom * distance / gesture.distance, CONFIG.zoom.min, CONFIG.zoom.max);
-
       camera.zoom = zoom;
       camera.tx = mx - gesture.wx * zoom;
       camera.ty = my - gesture.wy * zoom;
@@ -1147,14 +1076,6 @@
     }
 
     if (pointers.size !== 1) return;
-
-    if (moveDrag && moveDrag.pointerId === event.pointerId) {
-      camera.tx = moveDrag.tx + (event.clientX - moveDrag.clientX);
-      camera.ty = moveDrag.ty + (event.clientY - moveDrag.clientY);
-      clampCamera();
-      render();
-      return;
-    }
 
     if (pendingSplash && pendingSplash.pointerId === event.pointerId) {
       const moved = Math.hypot(event.clientX - pendingSplash.clientX, event.clientY - pendingSplash.clientY);
@@ -1170,8 +1091,6 @@
   function endPointer(event) {
     const wasPendingSplash = pendingSplash && pendingSplash.pointerId === event.pointerId;
     const shouldFinishBrush = drawing && drawing.pointerId === event.pointerId;
-    const shouldFinishMove = moveDrag && moveDrag.pointerId === event.pointerId;
-
     pointers.delete(event.pointerId);
 
     if (wasPendingSplash && !gesture && pointers.size === 0) {
@@ -1183,7 +1102,6 @@
     }
 
     if (shouldFinishBrush && !gesture) finishBrush();
-    if (shouldFinishMove) moveDrag = null;
     if (pointers.size < 2) gesture = null;
   }
 
@@ -1192,30 +1110,24 @@
     pointers.delete(event.pointerId);
     pendingSplash = null;
     if (drawing && drawing.pointerId === event.pointerId) drawing = null;
-    if (moveDrag && moveDrag.pointerId === event.pointerId) moveDrag = null;
     if (pointers.size < 2) gesture = null;
     updateHud();
     render();
   });
 
-  splashBtn.addEventListener('click', () => setMode('splash'));
-  brushBtn.addEventListener('click', () => setMode('brush'));
-  moveBtn.addEventListener('click', () => setMode('move'));
+  splashBtn.addEventListener('click', () => {
+    if (!gameOver && phase === 'splash') {
+      hintEl.textContent = `ラウンド${round}：盤面をタップしてスプラッシュ`;
+    }
+  });
+  thinBtn.addEventListener('click', () => selectPen('thin'));
+  wideBtn.addEventListener('click', () => selectPen('wide'));
   newBtn.addEventListener('click', () => reset(false));
   retryBtn.addEventListener('click', () => reset(true));
   nextBtn.addEventListener('click', () => reset(false));
   zoomInBtn.addEventListener('click', () => zoomTo(camera.zoom + CONFIG.zoom.step));
   zoomOutBtn.addEventListener('click', () => zoomTo(camera.zoom - CONFIG.zoom.step));
   zoomResetBtn.addEventListener('click', resetCamera);
-
-  viewLeftBtn.addEventListener('pointerdown', event => startPanHold(-1, event));
-  viewRightBtn.addEventListener('pointerdown', event => startPanHold(1, event));
-  for (const button of [viewLeftBtn, viewRightBtn]) {
-    button.addEventListener('pointerup', stopPanHold);
-    button.addEventListener('pointercancel', stopPanHold);
-    button.addEventListener('pointerleave', stopPanHold);
-  }
-  window.addEventListener('pointerup', stopPanHold);
 
   distributionBtn.addEventListener('click', () => {
     distributionPanel.hidden = !distributionPanel.hidden;
@@ -1225,7 +1137,6 @@
   });
   window.addEventListener('resize', resizeCanvas);
 
-  renderDistributionPanel();
   requestAnimationFrame(() => {
     resizeCanvas();
     reset(true);
