@@ -27,7 +27,7 @@
       radialBias: { core: 0.40, droplet: 0.50, speck: 0.58 },
     },
     resources: {
-      minHomeDistance: 34,
+      minHomeDistance: 48,
       minGap: 10,
       scoreStep: 10,
       counts: {
@@ -310,58 +310,68 @@ function inBounds(x, y) {
 
   function createStarterPuddle() {
     const target = new Set();
-    const anchor = starterAnchor();
     const radius = CONFIG.starterPuddle.radius;
     const edge = CONFIG.rows - 1;
-    const cx = anchor.x;
+    const bodyRadius = radius * .83;
+    const cx = starterAnchor().x + rand(-1.4, 1.4);
+    const cy = edge + bodyRadius * .38;
 
-    addDisk(cx, edge + radius * .50, radius * .94, target);
-    addDisk(cx - radius * .34, edge + radius * .39, radius * .57, target);
-    addDisk(cx + radius * .33, edge + radius * .37, radius * .59, target);
-    addDisk(cx - radius * .08, edge + radius * .20, radius * .45, target);
-    addDisk(cx + radius * .14, edge + radius * .18, radius * .43, target);
+    // The full splat continues below the board; only roughly its upper 40% is visible.
+    addDisk(cx, cy, bodyRadius, target);
 
-    const rim = [
-      [-.46, .04, .27],[-.31,-.02,.31],[-.17,-.07,.33],
-      [ .00,-.10,.34],[ .18,-.07,.32],[ .34,-.01,.29],[ .47,.06,.23],
-    ];
-    for (const [dx, dy, rr] of rim) {
+    // Small buried bulges keep the body from becoming a perfect circle.
+    for (let i = 0; i < 2; i++) {
+      const angle = rand(220 * Math.PI / 180, 320 * Math.PI / 180);
+      const distance = bodyRadius * rand(.10, .25);
       addDisk(
-        cx + dx * radius + rand(-1.0, 1.0),
-        edge + dy * radius + rand(-.8, .8),
-        rr * radius * rand(.94, 1.07),
+        cx + Math.cos(angle) * distance,
+        cy + Math.sin(angle) * distance,
+        radius * rand(.25, .33),
         target
       );
     }
 
-    const strokes = [
-      [-.31, .30, -.18],
-      [-.18, .45, -.10],
-      [-.05, .54,  .03],
-      [ .09, .40,  .12],
-      [ .23, .31,  .19],
-    ];
-    for (const [rootX, length, lean] of strokes) {
-      const x0 = cx + rootX * radius + rand(-.9, .9);
-      const y0 = edge - radius * rand(.11, .17);
-      const x1 = x0 + lean * radius + rand(-.8, .8);
-      const y1 = y0 - length * radius * rand(.88, 1.06);
-      addTaperedCellStroke(
-        x0, y0, x1, y1,
-        rand(1.35, 2.15),
-        rand(.72, .98),
-        target
-      );
+    // Five to seven rounded connected fingers form the visible splat rim.
+    const count = randInt(5, 7);
+    const hero = randInt(Math.max(1, Math.floor(count / 3)), Math.min(count - 2, Math.floor(2 * count / 3)));
+    for (let i = 0; i < count; i++) {
+      const angle = (208 + 124 * (i + .5) / count + rand(-7, 7)) * Math.PI / 180;
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
+      const rootDistance = bodyRadius * rand(.68, .78);
+      const strong = i === hero;
+      const extra = radius * rand(strong ? .24 : .12, strong ? .38 : .29);
+      const startRadius = radius * rand(strong ? .14 : .11, strong ? .19 : .17);
+      const endRadius = radius * rand(strong ? .11 : .07, strong ? .15 : .125);
+      const x0 = cx + ux * rootDistance;
+      const y0 = cy + uy * rootDistance;
+      const x1 = cx + ux * (rootDistance + extra);
+      const y1 = cy + uy * (rootDistance + extra);
+
+      addTaperedCellStroke(x0, y0, x1, y1, startRadius, endRadius, target);
+      addDisk(x1, y1, endRadius * rand(1.04, 1.16), target);
     }
 
-    const nubs = randInt(4, 7);
-    for (let i = 0; i < nubs; i++) {
-      const x = cx + rand(-radius * .44, radius * .44);
-      const y = edge - rand(2.0, 7.0);
-      addDisk(x, y, rand(2.1, 3.8), target);
+    // START must always be one gameplay-connected mass. No detached starter droplets.
+    const queue = [];
+    const active = new Set();
+    for (const k of target) {
+      const p = parseKey(k);
+      if (p.y < CONFIG.rows - 2) continue;
+      active.add(k);
+      queue.push(k);
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const p = parseKey(queue[i]);
+      for (const [dx, dy] of neighbors) {
+        const nk = key(p.x + dx, p.y + dy);
+        if (active.has(nk) || !target.has(nk)) continue;
+        active.add(nk);
+        queue.push(nk);
+      }
     }
 
-    starterInk = target;
+    starterInk = active.size ? active : target;
     for (const k of starterInk) ink.add(k);
   }
 
