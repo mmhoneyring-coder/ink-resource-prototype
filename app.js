@@ -229,48 +229,141 @@ function inBounds(x, y) {
     }
   }
 
-  function createStarterPuddle() {
-  const target = new Set();
-  const anchor = starterAnchor();
-  const radius = CONFIG.starterPuddle.radius;
-  const edge = CONFIG.rows - 1;
-  const cx = anchor.x;
+  function addTaperedCellStroke(x0, y0, x1, y1, startRadius, endRadius, target) {
+    const distance = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.max(2, Math.ceil(distance / 1.1));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const radius = startRadius + (endRadius - startRadius) * t;
+      const jitter = Math.sin(t * Math.PI) * .22;
+      addDisk(
+        x0 + (x1 - x0) * t + rand(-jitter, jitter),
+        y0 + (y1 - y0) * t + rand(-jitter, jitter),
+        Math.max(.72, radius),
+        target
+      );
+    }
+  }
 
-  // Treat this as a much larger ink island continuing below the board.
-  // Only its upper rim is visible, so it reads like a cropped coast rather than a mound.
-  addDisk(cx, edge + radius * .50, radius * .92, target);
-  addDisk(cx - radius * .34, edge + radius * .38, radius * .56, target);
-  addDisk(cx + radius * .32, edge + radius * .34, radius * .58, target);
+  function addDirectionalInkBlob(cx, cy, baseRadius, flowDirection, kind, target = ink) {
+    const ux = Math.cos(flowDirection);
+    const uy = Math.sin(flowDirection);
+    const vx = -uy;
+    const vy = ux;
+    const core = kind === 'core';
 
-  // Uneven overlapping lobes form the visible shoreline.
-  const rim = [
-    [-.43, .06, .30],
-    [-.25, -.05, .34],
-    [-.08, -.10, .31],
-    [ .10, -.07, .35],
-    [ .28,  .00, .30],
-    [ .43,  .08, .25],
-  ];
-  for (const [dx, dy, rr] of rim) {
     addDisk(
-      cx + dx * radius + rand(-1.3, 1.3),
-      edge + dy * radius + rand(-1.0, 1.0),
-      rr * radius * rand(.92, 1.08),
+      cx - ux * baseRadius * rand(.04, .12),
+      cy - uy * baseRadius * rand(.04, .12),
+      baseRadius * rand(core ? .76 : .74, core ? .92 : .88),
       target
     );
+    addDisk(
+      cx + ux * baseRadius * rand(.10, .24),
+      cy + uy * baseRadius * rand(.10, .24),
+      baseRadius * rand(core ? .48 : .42, core ? .68 : .60),
+      target
+    );
+
+    const lobeCount = core ? randInt(2, 4) : randInt(1, 2);
+    for (let i = 0; i < lobeCount; i++) {
+      const side = rng() < .5 ? -1 : 1;
+      const along = rand(-.28, .18) * baseRadius;
+      const across = side * rand(.18, .58) * baseRadius;
+      addDisk(
+        cx + ux * along + vx * across,
+        cy + uy * along + vy * across,
+        baseRadius * rand(core ? .24 : .22, core ? .48 : .40),
+        target
+      );
+    }
+
+    const tipLength = baseRadius * rand(core ? .42 : .30, core ? .86 : .62);
+    const rootX = cx + ux * baseRadius * rand(.30, .46);
+    const rootY = cy + uy * baseRadius * rand(.30, .46);
+    addTaperedCellStroke(
+      rootX,
+      rootY,
+      rootX + ux * tipLength + vx * rand(-.10, .10) * baseRadius,
+      rootY + uy * tipLength + vy * rand(-.10, .10) * baseRadius,
+      baseRadius * rand(core ? .12 : .10, core ? .20 : .16),
+      rand(.72, 1.02),
+      target
+    );
+
+    if (rng() < (core ? .62 : .34)) {
+      const side = rng() < .5 ? -1 : 1;
+      const sx = cx + ux * baseRadius * rand(-.08, .16) + vx * side * baseRadius * rand(.22, .42);
+      const sy = cy + uy * baseRadius * rand(-.08, .16) + vy * side * baseRadius * rand(.22, .42);
+      const len = baseRadius * rand(.24, core ? .56 : .42);
+      const angle = flowDirection + side * rand(.48, .92);
+      addTaperedCellStroke(
+        sx, sy,
+        sx + Math.cos(angle) * len,
+        sy + Math.sin(angle) * len,
+        baseRadius * rand(.09, .15),
+        rand(.68, .92),
+        target
+      );
+    }
   }
 
-  // A few tiny connected bulges break up the digital-looking smooth dome.
-  const nubs = randInt(3, 5);
-  for (let i = 0; i < nubs; i++) {
-    const x = cx + rand(-radius * .42, radius * .42);
-    const y = edge - rand(1.5, 5.5);
-    addDisk(x, y, rand(2.8, 4.6), target);
-  }
+  function createStarterPuddle() {
+    const target = new Set();
+    const anchor = starterAnchor();
+    const radius = CONFIG.starterPuddle.radius;
+    const edge = CONFIG.rows - 1;
+    const cx = anchor.x;
 
-  starterInk = target;
-  for (const k of starterInk) ink.add(k);
-}
+    addDisk(cx, edge + radius * .50, radius * .94, target);
+    addDisk(cx - radius * .34, edge + radius * .39, radius * .57, target);
+    addDisk(cx + radius * .33, edge + radius * .37, radius * .59, target);
+    addDisk(cx - radius * .08, edge + radius * .20, radius * .45, target);
+    addDisk(cx + radius * .14, edge + radius * .18, radius * .43, target);
+
+    const rim = [
+      [-.46, .04, .27],[-.31,-.02,.31],[-.17,-.07,.33],
+      [ .00,-.10,.34],[ .18,-.07,.32],[ .34,-.01,.29],[ .47,.06,.23],
+    ];
+    for (const [dx, dy, rr] of rim) {
+      addDisk(
+        cx + dx * radius + rand(-1.0, 1.0),
+        edge + dy * radius + rand(-.8, .8),
+        rr * radius * rand(.94, 1.07),
+        target
+      );
+    }
+
+    const strokes = [
+      [-.31, .30, -.18],
+      [-.18, .45, -.10],
+      [-.05, .54,  .03],
+      [ .09, .40,  .12],
+      [ .23, .31,  .19],
+    ];
+    for (const [rootX, length, lean] of strokes) {
+      const x0 = cx + rootX * radius + rand(-.9, .9);
+      const y0 = edge - radius * rand(.11, .17);
+      const x1 = x0 + lean * radius + rand(-.8, .8);
+      const y1 = y0 - length * radius * rand(.88, 1.06);
+      addTaperedCellStroke(
+        x0, y0, x1, y1,
+        rand(1.35, 2.15),
+        rand(.72, .98),
+        target
+      );
+    }
+
+    const nubs = randInt(4, 7);
+    for (let i = 0; i < nubs; i++) {
+      const x = cx + rand(-radius * .44, radius * .44);
+      const y = edge - rand(2.0, 7.0);
+      addDisk(x, y, rand(2.1, 3.8), target);
+    }
+
+    starterInk = target;
+    for (const k of starterInk) ink.add(k);
+  }
 
 function splashPoint(cx, cy, minDistance, maxDistance) {
     const angle = rand(0, TAU);
@@ -350,14 +443,16 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
         directions,
         CONFIG.splash.radialBias.core
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
+      const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || directions[0] || rand(0, TAU);
+      addDirectionalInkBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), flow, 'core', splashInk);
     }
     for (let i = 0; i < droplets; i++) {
       const p = splashPointBiased(
         impact.x, impact.y, 18, CONFIG.splash.spread,
         directions, CONFIG.splash.radialBias.droplet
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
+      const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || directions[0] || rand(0, TAU);
+      addDirectionalInkBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), flow, 'droplet', splashInk);
     }
     for (let i = 0; i < specks; i++) {
       const p = splashPointBiased(
