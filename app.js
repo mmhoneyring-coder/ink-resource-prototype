@@ -6,28 +6,28 @@
     rows: 450,
     rounds: 4,
     brushAreaPerTurn: 650,
-    starterPuddle: { radius: 35 },
+    starterPuddle: { radius: 30 },
     brushRadii: { thin: 3, wide: 6 },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
     zoom: { min: 1, default: 1, max: 1.35, step: 0.10 },
     splash: {
-      coreCount: [2, 4],
-      dropletCount: [2, 4],
-      speckCount: [3, 6],
-      coreRadius: [8.4, 12.0],
-      dropletRadius: [3.2, 5.2],
-      speckRadius: [1.1, 2.0],
-      coreSpread: 30,
-      spread: 48,
-      farSpread: 68,
-      aimDrift: [10, 24],
+      coreCount: [4, 6],
+      dropletCount: [10, 15],
+      speckCount: [8, 12],
+      coreRadius: [14, 20],
+      dropletRadius: [6, 11],
+      speckRadius: [3, 5],
+      spread: 115,
+      farSpread: 155,
+      aimDrift: [10, 28],
+      minIslandArea: 30,
       radialDirections: [2, 3],
-      radialJitter: 0.72,
-      radialBias: { core: 0.55, droplet: 0.60, speck: 0.62 },
+      radialJitter: 1.0,
+      radialBias: { core: 0.40, droplet: 0.50, speck: 0.58 },
     },
     resources: {
-      minHomeDistance: 48,
+      minHomeDistance: 34,
       minGap: 10,
       scoreStep: 10,
       counts: {
@@ -92,83 +92,6 @@
   const TAU = Math.PI * 2;
   const TAP_MOVE_PX = 5;
   const EPS = 0.01;
-
-  // One connected brush-splat silhouette. Detached starter droplets are intentionally omitted.
-  const STARTER_SHAPE = [
-    [1.000,0.867],[0.957,0.908],[0.947,0.900],[0.941,0.933],[0.920,0.925],
-    [0.888,0.958],[0.877,0.942],[0.882,0.908],[0.920,0.850],[0.930,0.800],
-    [0.904,0.825],[0.904,0.792],[0.824,0.933],[0.759,0.967],[0.754,0.950],
-    [0.775,0.900],[0.722,0.983],[0.701,0.967],[0.701,0.933],[0.674,0.975],
-    [0.642,0.917],[0.663,0.900],[0.615,0.900],[0.615,0.875],[0.594,0.875],
-    [0.599,0.842],[0.588,0.825],[0.631,0.808],[0.679,0.733],[0.642,0.775],
-    [0.626,0.758],[0.695,0.667],[0.636,0.717],[0.599,0.725],[0.583,0.692],
-    [0.631,0.592],[0.561,0.625],[0.551,0.575],[0.508,0.633],[0.492,0.583],
-    [0.497,0.550],[0.529,0.517],[0.529,0.458],[0.556,0.375],[0.647,0.308],
-    [0.679,0.233],[0.679,0.158],[0.668,0.175],[0.626,0.142],[0.626,0.050],
-    [0.642,0.000],[0.631,0.033],[0.583,0.025],[0.529,0.075],[0.513,0.125],
-    [0.513,0.175],[0.529,0.217],[0.513,0.300],[0.529,0.250],[0.561,0.217],
-    [0.572,0.350],[0.513,0.467],[0.503,0.458],[0.481,0.483],[0.465,0.533],
-    [0.471,0.433],[0.444,0.558],[0.428,0.583],[0.406,0.575],[0.412,0.542],
-    [0.396,0.508],[0.412,0.500],[0.396,0.483],[0.396,0.442],[0.385,0.517],
-    [0.364,0.542],[0.364,0.575],[0.385,0.608],[0.369,0.633],[0.337,0.608],
-    [0.353,0.492],[0.337,0.575],[0.326,0.592],[0.310,0.575],[0.305,0.508],
-    [0.337,0.317],[0.316,0.367],[0.316,0.458],[0.294,0.500],[0.289,0.550],
-    [0.257,0.608],[0.230,0.625],[0.198,0.550],[0.193,0.392],[0.187,0.683],
-    [0.150,0.733],[0.139,0.717],[0.139,0.650],[0.139,0.725],[0.118,0.842],
-    [0.102,0.842],[0.086,0.758],[0.064,0.858],[0.005,0.917],[0.011,0.992],
-    [0.000,1.000],[0.567,1.000],[0.572,0.967],[0.604,0.933],[0.658,0.958],
-    [0.674,0.983],[0.668,1.000],[0.930,1.000],[0.979,0.942],
-  ];
-
-
-  // Splash island silhouettes. Each template points toward +X; runtime rotation aligns it to the splash flow.
-  // These are deliberately asymmetric ink silhouettes rather than radial/random polygons.
-  const SPLASH_CORE_SHAPES = [
-    [
-      [-0.374,-0.907],[-0.374,-0.841],[-0.538,-0.678],[-0.570,-0.449],[-0.701,-0.350],
-      [-0.832,-0.383],[-0.865,-0.318],[-0.799,-0.285],[-0.930,0.009],[-0.930,0.206],
-      [-0.865,0.369],[-0.636,0.566],[-0.439,0.533],[-0.276,0.696],[-0.309,0.795],
-      [-0.178,0.795],[-0.210,0.860],[-0.145,0.795],[0.051,0.827],[0.149,0.762],
-      [0.378,0.827],[0.542,0.631],[0.640,0.664],[0.836,0.500],[0.836,0.337],
-      [1.000,0.304],[1.000,0.238],[0.771,0.108],[0.804,-0.023],[0.967,-0.121],
-      [0.869,-0.056],[0.771,-0.154],[0.706,-0.383],[0.542,-0.612],[0.607,-0.743],
-      [0.542,-0.808],[0.575,-0.874],[0.313,-0.710],[0.117,-0.841],[0.019,-0.808],
-      [-0.145,-0.874],[-0.210,-0.808],[-0.309,-0.808],
-    ],
-    [
-      [0.638,-0.222],[0.500,-0.166],[0.445,-0.332],[0.115,-0.387],[-0.064,-0.318],
-      [-0.243,-0.387],[-0.298,-0.332],[-0.367,-0.318],[-0.367,-0.345],[-0.394,-0.318],
-      [-0.381,-0.277],[-0.463,-0.139],[-0.449,-0.070],[-0.890,-0.098],[-0.931,-0.001],
-      [-1.000,0.012],[-0.931,0.054],[-0.408,0.026],[-0.257,0.178],[-0.202,0.343],
-      [0.018,0.425],[0.018,0.535],[0.046,0.453],[0.294,0.453],[0.321,0.343],
-      [0.390,0.357],[0.376,0.315],[0.514,0.178],[0.528,-0.166],[0.610,-0.166],
-    ],
-    [
-      [-0.666,-0.399],[-0.603,-0.242],[-0.634,-0.116],[-0.540,-0.053],[-0.540,0.104],
-      [-0.446,0.135],[-0.634,0.324],[-0.571,0.418],[-0.634,0.575],[-0.509,0.638],
-      [-0.351,0.827],[-0.226,0.764],[-0.069,0.795],[0.183,0.512],[0.371,0.512],
-      [0.497,0.355],[0.591,0.355],[0.654,0.418],[0.623,0.355],[0.717,0.230],
-      [1.000,0.324],[0.969,0.261],[0.780,0.230],[0.717,0.135],[0.591,0.135],
-      [0.529,0.072],[0.591,0.010],[0.686,0.010],[0.654,-0.085],[0.717,-0.179],
-      [0.560,-0.242],[0.623,-0.556],[0.309,-0.619],[0.214,-0.776],[-0.037,-0.650],
-      [-0.226,-0.870],[-0.226,-0.650],[-0.351,-0.556],[-0.509,-0.588],[-0.477,-0.462],
-      [-0.540,-0.399],
-    ],
-  ];
-
-  const SPLASH_DROPLET_SHAPES = [
-    [
-      [-0.90,-0.15],[-0.55,-0.58],[-0.12,-0.70],[0.25,-0.56],[0.54,-0.72],
-      [0.48,-0.30],[1.05,-0.08],[0.58,0.12],[0.62,0.45],[0.15,0.58],
-      [-0.20,0.52],[-0.50,0.32],[-0.88,0.22],
-    ],
-    [
-      [-0.92,-0.18],[-0.60,-0.52],[-0.22,-0.62],[0.06,-0.48],[0.22,-0.80],
-      [0.32,-0.38],[0.78,-0.46],[0.62,-0.10],[1.12,0.02],[0.54,0.16],
-      [0.40,0.50],[0.02,0.62],[-0.34,0.48],[-0.58,0.18],
-    ],
-  ];
-
   const COLORS = {
     position: '#60777c',
     positionSoft: 'rgba(96,119,124,.30)',
@@ -229,8 +152,6 @@
   let gesture = null;
   let feedback = null;
   let feedbackTimer = null;
-  let splashShapes = [];
-  let splashVisualInk = new Set();
   let actionDrag = null;
   let actionsMoved = false;
 
@@ -270,47 +191,15 @@
   }
 
   function starterAnchor() {
-    const radius = CONFIG.starterPuddle.radius;
-    return {
-      x: Math.floor(CONFIG.cols / 2),
-      y: CONFIG.rows - 1 - Math.round(radius * .20),
-    };
-  }
+  const radius = CONFIG.starterPuddle.radius;
+  return {
+    x: Math.floor(CONFIG.cols / 2),
+    y: CONFIG.rows - 1 - Math.round(radius * .20),
+  };
+}
 
-  function starterShapeBounds() {
-    const radius = CONFIG.starterPuddle.radius;
-    const width = radius * 1.93;
-    const height = radius * 1.23;
-    return {
-      left: starterAnchor().x - width / 2,
-      top: CONFIG.rows - height,
-      width,
-      height,
-    };
-  }
-
-  function starterShapePoints() {
-    const bounds = starterShapeBounds();
-    return STARTER_SHAPE.map(([u, v]) => ({
-      x: bounds.left + u * bounds.width,
-      y: bounds.top + v * bounds.height,
-    }));
-  }
-
-  function inBounds(x, y) {
+function inBounds(x, y) {
     return x >= 0 && x < CONFIG.cols && y >= 0 && y < CONFIG.rows;
-  }
-
-  function pointInPolygon(x, y, polygon) {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-      const a = polygon[i];
-      const b = polygon[j];
-      const crosses = ((a.y > y) !== (b.y > y)) &&
-        (x < (b.x - a.x) * (y - a.y) / ((b.y - a.y) || EPS) + a.x);
-      if (crosses) inside = !inside;
-    }
-    return inside;
   }
 
   function addDisk(cx, cy, radius, target = ink) {
@@ -340,194 +229,50 @@
     }
   }
 
-  function angleDiff(a, b) {
-    return Math.atan2(Math.sin(a - b), Math.cos(a - b));
-  }
-
-  function createSplashIslandPoints(cx, cy, baseRadius, kind, flowDirection) {
-    // Keep placement/size randomness separate from silhouette quality.
-    // Templates face +X and are rotated to the physical splash direction.
-    if (kind === 'speck') {
-      const count = randInt(7, 10);
-      const rotation = flowDirection + rand(-.95, .95);
-      const stretchX = rand(.88, 1.10);
-      const stretchY = rand(.88, 1.10);
-      const points = [];
-      for (let i = 0; i < count; i++) {
-        const angle = i / count * TAU + rand(-.08, .08);
-        const radius = baseRadius * rand(.84, 1.16);
-        const px = Math.cos(angle) * radius * stretchX;
-        const py = Math.sin(angle) * radius * stretchY;
-        const cr = Math.cos(rotation);
-        const sr = Math.sin(rotation);
-        points.push({ x: cx + px * cr - py * sr, y: cy + px * sr + py * cr });
-      }
-      return points;
-    }
-
-    const templates = kind === 'core' ? SPLASH_CORE_SHAPES : SPLASH_DROPLET_SHAPES;
-    const template = templates[randInt(0, templates.length - 1)];
-    const mirror = rng() < .5 ? -1 : 1;
-    const rotationJitter = kind === 'core' ? .30 : .52;
-    const rotation = flowDirection + rand(-rotationJitter, rotationJitter);
-    const stretchX = kind === 'core' ? rand(.88, 1.15) : rand(.90, 1.11);
-    const stretchY = kind === 'core' ? rand(.88, 1.12) : rand(.91, 1.10);
-    const localJitter = kind === 'core' ? .055 : .045;
-    const forwardStretch = kind === 'core' ? rand(1.02, 1.14) : rand(1.00, 1.09);
-    const rearCompress = kind === 'core' ? rand(.92, 1.00) : rand(.95, 1.00);
-    const cr = Math.cos(rotation);
-    const sr = Math.sin(rotation);
-
-    return template.map(([u, v]) => {
-      const jitter = rand(1 - localJitter, 1 + localJitter);
-      const directionalScale = u >= 0 ? forwardStretch : rearCompress;
-      const px = u * baseRadius * stretchX * directionalScale * jitter;
-      const py = v * mirror * baseRadius * stretchY * jitter;
-      return {
-        x: cx + px * cr - py * sr,
-        y: cy + px * sr + py * cr,
-      };
-    });
-  }
-
-  function rasterizeSplashPolygon(points) {
-    const cells = new Set();
-    if (!points.length) return cells;
-    const samples = [[.5,.5], [.2,.2], [.8,.2], [.2,.8], [.8,.8]];
-    const minX = Math.max(0, Math.floor(Math.min(...points.map(p => p.x))) - 1);
-    const maxX = Math.min(CONFIG.cols - 1, Math.ceil(Math.max(...points.map(p => p.x))) + 1);
-    const minY = Math.max(0, Math.floor(Math.min(...points.map(p => p.y))) - 1);
-    const maxY = Math.min(CONFIG.rows - 1, Math.ceil(Math.max(...points.map(p => p.y))) + 1);
-
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        if (samples.some(([sx, sy]) => pointInPolygon(x + sx, y + sy, points))) {
-          cells.add(key(x, y));
-        }
-      }
-    }
-    return cells;
-  }
-
-  function largestCellComponent(cells) {
-    if (!cells.size) return cells;
-    const visited = new Set();
-    let largest = new Set();
-
-    for (const start of cells) {
-      if (visited.has(start)) continue;
-      const component = new Set([start]);
-      const queue = [start];
-      visited.add(start);
-      for (let i = 0; i < queue.length; i++) {
-        const p = parseKey(queue[i]);
-        for (const [dx, dy] of neighbors) {
-          const next = key(p.x + dx, p.y + dy);
-          if (!cells.has(next) || visited.has(next)) continue;
-          visited.add(next);
-          component.add(next);
-          queue.push(next);
-        }
-      }
-      if (component.size > largest.size) largest = component;
-    }
-    return largest;
-  }
-
-  function addSplashIsland(cx, cy, baseRadius, kind, flowDirection, target) {
-    const points = createSplashIslandPoints(cx, cy, baseRadius, kind, flowDirection);
-    const cells = largestCellComponent(rasterizeSplashPolygon(points));
-    if (!cells.size) return null;
-    for (const k of cells) {
-      target.add(k);
-      splashVisualInk.add(k);
-    }
-    const shape = { points, cells };
-    splashShapes.push(shape);
-    return shape;
-  }
-
-  function chooseSplashCenter(impact, radius, kind, index, directions, placed) {
-    const range = kind === 'core'
-      ? (index === 0 ? [3, 14] : [10, CONFIG.splash.coreSpread])
-      : kind === 'droplet'
-        ? [15, CONFIG.splash.spread]
-        : [22, CONFIG.splash.farSpread];
-    const bias = CONFIG.splash.radialBias[kind];
-    let candidate = { x: impact.x, y: impact.y };
-
-    for (let tries = 0; tries < 48; tries++) {
-      const useBias = directions.length > 0 && rng() < bias;
-      const angle = useBias
-        ? directions[randInt(0, directions.length - 1)] + rand(-CONFIG.splash.radialJitter, CONFIG.splash.radialJitter)
-        : rand(0, TAU);
-      const distance = rand(...range);
-      const x = impact.x + Math.cos(angle) * distance;
-      const y = impact.y + Math.sin(angle) * distance;
-      candidate = {
-        x: clamp(x, radius * .35, CONFIG.cols - 1 - radius * .35),
-        y: clamp(y, radius * .35, CONFIG.rows - 1 - radius * .35),
-      };
-
-      const spaced = placed.every(other => {
-        const factor = kind === 'core' && other.kind === 'core'
-          ? 1.0
-          : kind !== 'speck' && other.kind !== 'speck'
-            ? .68
-            : .12;
-        return Math.hypot(candidate.x - other.x, candidate.y - other.y)
-          >= factor * (radius + other.radius);
-      });
-      if (spaced) break;
-    }
-    return candidate;
-  }
-
   function createStarterPuddle() {
-    const polygon = starterShapePoints();
-    const bounds = starterShapeBounds();
-    const target = new Set();
-    const samples = [
-      [.50,.50], [.18,.18], [.82,.18], [.18,.82], [.82,.82],
-      [.50,.18], [.50,.82], [.18,.50], [.82,.50],
-    ];
+  const target = new Set();
+  const anchor = starterAnchor();
+  const radius = CONFIG.starterPuddle.radius;
+  const edge = CONFIG.rows - 1;
+  const cx = anchor.x;
 
-    const minX = Math.max(0, Math.floor(bounds.left) - 1);
-    const maxX = Math.min(CONFIG.cols - 1, Math.ceil(bounds.left + bounds.width) + 1);
-    const minY = Math.max(0, Math.floor(bounds.top) - 1);
+  // Treat this as a much larger ink island continuing below the board.
+  // Only its upper rim is visible, so it reads like a cropped coast rather than a mound.
+  addDisk(cx, edge + radius * .50, radius * .92, target);
+  addDisk(cx - radius * .34, edge + radius * .38, radius * .56, target);
+  addDisk(cx + radius * .32, edge + radius * .34, radius * .58, target);
 
-    for (let y = minY; y < CONFIG.rows; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        if (samples.some(([sx, sy]) => pointInPolygon(x + sx, y + sy, polygon))) {
-          target.add(key(x, y));
-        }
-      }
-    }
-
-    // Only the component actually connected to the bottom edge is a gameplay anchor.
-    const queue = [];
-    const active = new Set();
-    for (const k of target) {
-      const p = parseKey(k);
-      if (p.y < CONFIG.rows - 2) continue;
-      active.add(k);
-      queue.push(k);
-    }
-    for (let i = 0; i < queue.length; i++) {
-      const p = parseKey(queue[i]);
-      for (const [dx, dy] of neighbors) {
-        const nk = key(p.x + dx, p.y + dy);
-        if (active.has(nk) || !target.has(nk)) continue;
-        active.add(nk);
-        queue.push(nk);
-      }
-    }
-
-    starterInk = active.size ? active : target;
-    for (const k of starterInk) ink.add(k);
+  // Uneven overlapping lobes form the visible shoreline.
+  const rim = [
+    [-.43, .06, .30],
+    [-.25, -.05, .34],
+    [-.08, -.10, .31],
+    [ .10, -.07, .35],
+    [ .28,  .00, .30],
+    [ .43,  .08, .25],
+  ];
+  for (const [dx, dy, rr] of rim) {
+    addDisk(
+      cx + dx * radius + rand(-1.3, 1.3),
+      edge + dy * radius + rand(-1.0, 1.0),
+      rr * radius * rand(.92, 1.08),
+      target
+    );
   }
 
-  function splashPoint(cx, cy, minDistance, maxDistance) {
+  // A few tiny connected bulges break up the digital-looking smooth dome.
+  const nubs = randInt(3, 5);
+  for (let i = 0; i < nubs; i++) {
+    const x = cx + rand(-radius * .42, radius * .42);
+    const y = edge - rand(1.5, 5.5);
+    addDisk(x, y, rand(2.8, 4.6), target);
+  }
+
+  starterInk = target;
+  for (const k of starterInk) ink.add(k);
+}
+
+function splashPoint(cx, cy, minDistance, maxDistance) {
     const angle = rand(0, TAU);
     const distance = rand(minDistance, maxDistance);
     return { x: cx + Math.cos(angle) * distance, y: cy + Math.sin(angle) * distance };
@@ -591,33 +336,38 @@
     if (gameOver || phase !== 'splash') return;
 
     const splashInk = new Set();
-    const coreCount = randInt(...CONFIG.splash.coreCount);
-    const dropletCount = randInt(...CONFIG.splash.dropletCount);
-    const speckCount = randInt(...CONFIG.splash.speckCount);
+    const core = randInt(...CONFIG.splash.coreCount);
+    const droplets = randInt(...CONFIG.splash.dropletCount);
+    const specks = randInt(...CONFIG.splash.speckCount);
     const impact = splashPoint(cx, cy, ...CONFIG.splash.aimDrift);
     const directions = createSplashDirections();
-    const placed = [];
 
-    const addPlacedIsland = (kind, radius, index) => {
-      const center = chooseSplashCenter(impact, radius, kind, index, directions, placed);
-      const outward = Math.atan2(center.y - impact.y, center.x - impact.x);
-      const flowDirection = Number.isFinite(outward)
-        ? outward + rand(-.35, .35)
-        : directions[randInt(0, directions.length - 1)] || rand(0, TAU);
-      const shape = addSplashIsland(center.x, center.y, radius, kind, flowDirection, splashInk);
-      if (shape) placed.push({ x: center.x, y: center.y, radius, kind });
-    };
+    for (let i = 0; i < core; i++) {
+      const p = splashPointBiased(
+        impact.x, impact.y,
+        i === 0 ? 4 : 12,
+        i === 0 ? 25 : CONFIG.splash.spread * .58,
+        directions,
+        CONFIG.splash.radialBias.core
+      );
+      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
+    }
+    for (let i = 0; i < droplets; i++) {
+      const p = splashPointBiased(
+        impact.x, impact.y, 18, CONFIG.splash.spread,
+        directions, CONFIG.splash.radialBias.droplet
+      );
+      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
+    }
+    for (let i = 0; i < specks; i++) {
+      const p = splashPointBiased(
+        impact.x, impact.y, 27, CONFIG.splash.farSpread,
+        directions, CONFIG.splash.radialBias.speck
+      );
+      addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius), splashInk);
+    }
 
-    for (let i = 0; i < coreCount; i++) {
-      addPlacedIsland('core', rand(...CONFIG.splash.coreRadius), i);
-    }
-    for (let i = 0; i < dropletCount; i++) {
-      addPlacedIsland('droplet', rand(...CONFIG.splash.dropletRadius), i);
-    }
-    for (let i = 0; i < speckCount; i++) {
-      addPlacedIsland('speck', rand(...CONFIG.splash.speckRadius), i);
-    }
-
+    pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
     for (const k of splashInk) ink.add(k);
 
     refreshConnected();
@@ -966,32 +716,32 @@
   }
 
   function actionToolbarBounds() {
-    const shellRect = appShell.getBoundingClientRect();
-    const boardRect = boardWrap.getBoundingClientRect();
-    const toolRect = actionsEl.getBoundingClientRect();
-    const margin = 4;
-    const minLeft = boardRect.left - shellRect.left + margin;
-    const minTop = boardRect.top - shellRect.top + margin;
-    const maxLeft = Math.max(minLeft, boardRect.right - shellRect.left - toolRect.width - margin);
-    const maxTop = Math.max(minTop, boardRect.bottom - shellRect.top - toolRect.height - margin);
-    return { minLeft, minTop, maxLeft, maxTop };
-  }
+  const shellRect = appShell.getBoundingClientRect();
+  const boardRect = boardWrap.getBoundingClientRect();
+  const toolRect = actionsEl.getBoundingClientRect();
+  const margin = 4;
+  const minLeft = boardRect.left - shellRect.left + margin;
+  const minTop = boardRect.top - shellRect.top + margin;
+  const maxLeft = Math.max(minLeft, boardRect.right - shellRect.left - toolRect.width - margin);
+  const maxTop = Math.max(minTop, boardRect.bottom - shellRect.top - toolRect.height - margin);
+  return { minLeft, minTop, maxLeft, maxTop };
+}
 
-  function positionActionToolbar(left, top) {
-    const bounds = actionToolbarBounds();
-    actionsEl.style.left = `${clamp(left, bounds.minLeft, bounds.maxLeft)}px`;
-    actionsEl.style.top = `${clamp(top, bounds.minTop, bounds.maxTop)}px`;
-    actionsEl.style.right = 'auto';
-    actionsEl.style.bottom = 'auto';
-    actionsMoved = true;
-  }
+function positionActionToolbar(left, top) {
+  const bounds = actionToolbarBounds();
+  actionsEl.style.left = `${clamp(left, bounds.minLeft, bounds.maxLeft)}px`;
+  actionsEl.style.top = `${clamp(top, bounds.minTop, bounds.maxTop)}px`;
+  actionsEl.style.right = 'auto';
+  actionsEl.style.bottom = 'auto';
+  actionsMoved = true;
+}
 
-  function keepActionToolbarInBounds() {
-    if (!actionsMoved) return;
-    const shellRect = appShell.getBoundingClientRect();
-    const rect = actionsEl.getBoundingClientRect();
-    positionActionToolbar(rect.left - shellRect.left, rect.top - shellRect.top);
-  }
+function keepActionToolbarInBounds() {
+  if (!actionsMoved) return;
+  const shellRect = appShell.getBoundingClientRect();
+  const rect = actionsEl.getBoundingClientRect();
+  positionActionToolbar(rect.left - shellRect.left, rect.top - shellRect.top);
+}
 
   function resizeCanvas() {
     const rect = boardWrap.getBoundingClientRect();
@@ -1085,48 +835,6 @@
       ctx.stroke();
     }
     ctx.setLineDash([]);
-  }
-
-  function renderStarterPuddle(m) {
-    const polygon = starterShapePoints();
-    if (!polygon.length) return;
-    ctx.save();
-    ctx.fillStyle = '#1f2927';
-    ctx.beginPath();
-    polygon.forEach((p, i) => {
-      const x = p.x * m.sx;
-      const y = p.y * m.sy;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function renderSplashShapes(m) {
-    for (const shape of splashShapes) {
-      let isConnected = false;
-      for (const k of shape.cells) {
-        if (connected.has(k)) {
-          isConnected = true;
-          break;
-        }
-      }
-
-      ctx.save();
-      ctx.fillStyle = isConnected ? '#1f2927' : '#525755';
-      ctx.beginPath();
-      shape.points.forEach((p, i) => {
-        const x = p.x * m.sx;
-        const y = p.y * m.sy;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
   }
 
   function renderCoinHalo(resource, m) {
@@ -1287,11 +995,8 @@
     ctx.scale(camera.zoom, camera.zoom);
 
     renderBands(m);
-    renderStarterPuddle(m);
-    renderSplashShapes(m);
 
     for (const k of ink) {
-      if (starterInk.has(k) || splashVisualInk.has(k)) continue;
       const p = parseKey(k);
       ctx.fillStyle = connected.has(k) ? '#1f2927' : '#525755';
       ctx.fillRect(
@@ -1360,8 +1065,6 @@
     syncBoardWidthToViewport();
     ink = new Set();
     starterInk = new Set();
-    splashShapes = [];
-    splashVisualInk = new Set();
     connected = new Set();
     resources = createResources();
     score = 0;
@@ -1409,56 +1112,54 @@
   }
 
   actionsEl.addEventListener('pointerdown', event => {
-    // Pen buttons keep their normal tap behavior. Everything else on the toolbar is a drag handle.
-    if (event.target.closest('.action')) return;
-    if (gameOver || phase !== 'brush') return;
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
+  if (event.target.closest('.action')) return;
+  if (gameOver || phase !== 'brush') return;
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
 
-    const rect = actionsEl.getBoundingClientRect();
-    const shellRect = appShell.getBoundingClientRect();
-    actionDrag = {
-      pointerId: event.pointerId,
-      offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top,
-    };
+  const rect = actionsEl.getBoundingClientRect();
+  const shellRect = appShell.getBoundingClientRect();
+  actionDrag = {
+    pointerId: event.pointerId,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top,
+  };
 
-    // Convert the initial bottom-anchored position to explicit left/top without a visual jump.
-    actionsEl.style.left = `${rect.left - shellRect.left}px`;
-    actionsEl.style.top = `${rect.top - shellRect.top}px`;
-    actionsEl.style.right = 'auto';
-    actionsEl.style.bottom = 'auto';
-    actionsEl.classList.add('dragging');
-    actionsEl.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
-  });
+  actionsEl.style.left = `${rect.left - shellRect.left}px`;
+  actionsEl.style.top = `${rect.top - shellRect.top}px`;
+  actionsEl.style.right = 'auto';
+  actionsEl.style.bottom = 'auto';
+  actionsEl.classList.add('dragging');
+  actionsEl.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+});
 
-  actionsEl.addEventListener('pointermove', event => {
-    if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
-    const shellRect = appShell.getBoundingClientRect();
-    positionActionToolbar(
-      event.clientX - shellRect.left - actionDrag.offsetX,
-      event.clientY - shellRect.top - actionDrag.offsetY
-    );
-    event.preventDefault();
-  });
+actionsEl.addEventListener('pointermove', event => {
+  if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
+  const shellRect = appShell.getBoundingClientRect();
+  positionActionToolbar(
+    event.clientX - shellRect.left - actionDrag.offsetX,
+    event.clientY - shellRect.top - actionDrag.offsetY
+  );
+  event.preventDefault();
+});
 
-  function endActionToolbarDrag(event) {
-    if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
+function endActionToolbarDrag(event) {
+  if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
+  actionDrag = null;
+  actionsEl.classList.remove('dragging');
+  try {
+    if (actionsEl.hasPointerCapture?.(event.pointerId)) actionsEl.releasePointerCapture(event.pointerId);
+  } catch (_) {}
+}
+
+actionsEl.addEventListener('pointerup', endActionToolbarDrag);
+actionsEl.addEventListener('pointercancel', endActionToolbarDrag);
+actionsEl.addEventListener('lostpointercapture', event => {
+  if (actionDrag && actionDrag.pointerId === event.pointerId) {
     actionDrag = null;
     actionsEl.classList.remove('dragging');
-    try {
-      if (actionsEl.hasPointerCapture?.(event.pointerId)) actionsEl.releasePointerCapture(event.pointerId);
-    } catch (_) {}
   }
-
-  actionsEl.addEventListener('pointerup', endActionToolbarDrag);
-  actionsEl.addEventListener('pointercancel', endActionToolbarDrag);
-  actionsEl.addEventListener('lostpointercapture', event => {
-    if (actionDrag && actionDrag.pointerId === event.pointerId) {
-      actionDrag = null;
-      actionsEl.classList.remove('dragging');
-    }
-  });
+});
 
   canvas.addEventListener('pointerdown', event => {
     if (gameOver || !distributionPanel.hidden) return;
