@@ -12,19 +12,19 @@
     acquireCoverage: 0.70,
     zoom: { min: 1, default: 1, max: 1.35, step: 0.10 },
     splash: {
-      coreCount: [3, 4],
-      dropletCount: [5, 7],
-      speckCount: [6, 9],
-      coreRadius: [15, 21],
-      dropletRadius: [6, 10],
-      speckRadius: [2.2, 3.8],
-      coreSpread: 68,
-      spread: 120,
-      farSpread: 158,
-      aimDrift: [12, 30],
+      coreCount: [2, 4],
+      dropletCount: [2, 4],
+      speckCount: [3, 6],
+      coreRadius: [7.2, 10.2],
+      dropletRadius: [2.8, 4.4],
+      speckRadius: [1.0, 1.8],
+      coreSpread: 25,
+      spread: 40,
+      farSpread: 58,
+      aimDrift: [10, 24],
       radialDirections: [2, 3],
-      radialJitter: 0.82,
-      radialBias: { core: 0.52, droplet: 0.60, speck: 0.65 },
+      radialJitter: 0.72,
+      radialBias: { core: 0.55, droplet: 0.60, speck: 0.62 },
     },
     resources: {
       minHomeDistance: 48,
@@ -292,100 +292,128 @@
   }
 
   function createSplashIslandPoints(cx, cy, baseRadius, kind, flowDirection) {
+    // STARTと同じshape-first方式。円を変形するのではなく、
+    // 角・切れ込み・尖りを含む輪郭点列そのものを先に作る。
     const profile = kind === 'core'
       ? {
-          points: 72,
-          roughness: .025,
-          stretch: [.90, 1.10],
-          lobes: [3, 5],
-          dents: [1, 3],
-          spikes: [3, 6],
-          lobeAmp: [.05, .12],
-          dentAmp: [.04, .10],
-          spikeAmp: [.12, .34],
-          spikeWidth: [.035, .085],
+          vertices: [13, 17],
+          radiusJitter: [.78, 1.12],
+          jaggedClusters: [2, 4],
+          clusterTeeth: [1, 2],
+          toothTip: [1.16, 1.35],
+          toothRoot: [.72, .90],
+          notches: [1, 3],
+          notchRadius: [.58, .80],
+          longSpikeChance: .45,
+          longSpikeTip: [1.35, 1.65],
         }
       : kind === 'droplet'
         ? {
-            points: 56,
-            roughness: .022,
-            stretch: [.92, 1.10],
-            lobes: [2, 4],
-            dents: [1, 2],
-            spikes: [1, 3],
-            lobeAmp: [.04, .09],
-            dentAmp: [.03, .07],
-            spikeAmp: [.08, .22],
-            spikeWidth: [.045, .10],
+            vertices: [10, 13],
+            radiusJitter: [.82, 1.10],
+            jaggedClusters: [1, 2],
+            clusterTeeth: [1, 2],
+            toothTip: [1.12, 1.28],
+            toothRoot: [.76, .92],
+            notches: [0, 2],
+            notchRadius: [.65, .84],
+            longSpikeChance: .20,
+            longSpikeTip: [1.25, 1.45],
           }
         : {
-            points: 36,
-            roughness: .015,
-            stretch: [.94, 1.06],
-            lobes: [1, 2],
-            dents: [0, 0],
-            spikes: [0, 1],
-            lobeAmp: [.02, .05],
-            dentAmp: [0, 0],
-            spikeAmp: [.04, .10],
-            spikeWidth: [.06, .12],
+            vertices: [7, 9],
+            radiusJitter: [.88, 1.08],
+            jaggedClusters: [0, 1],
+            clusterTeeth: [1, 1],
+            toothTip: [1.08, 1.18],
+            toothRoot: [.82, .95],
+            notches: [0, 0],
+            notchRadius: [.82, .92],
+            longSpikeChance: 0,
+            longSpikeTip: [1, 1],
           };
 
-    const rotation = rand(0, TAU);
-    const stretch = rand(...profile.stretch);
-    const phase2 = rand(0, TAU);
-    const phase5 = rand(0, TAU);
-    const features = [];
+    const baseCount = randInt(...profile.vertices);
+    const step = TAU / baseCount;
+    const contour = [];
 
-    for (let i = 0; i < randInt(...profile.lobes); i++) {
-      features.push({
-        type: 'lobe',
-        angle: rand(0, TAU),
-        amp: rand(...profile.lobeAmp),
-        width: rand(.18, .38),
+    for (let i = 0; i < baseCount; i++) {
+      contour.push({
+        angle: (i * step + rand(-.18, .18) * step + TAU) % TAU,
+        radius: rand(...profile.radiusJitter),
       });
     }
-    for (let i = 0; i < randInt(...profile.dents); i++) {
-      features.push({
-        type: 'dent',
-        angle: rand(0, TAU),
-        amp: rand(...profile.dentAmp),
-        width: rand(.18, .32),
-      });
-    }
-    for (let i = 0; i < randInt(...profile.spikes); i++) {
-      features.push({
-        type: 'spike',
-        angle: rng() < .45 ? flowDirection + rand(-.65, .65) : rand(0, TAU),
-        amp: rand(...profile.spikeAmp),
-        width: rand(...profile.spikeWidth),
-      });
-    }
+    contour.sort((a, b) => a.angle - b.angle);
 
-    const cr = Math.cos(rotation);
-    const sr = Math.sin(rotation);
-    const points = [];
-    for (let i = 0; i < profile.points; i++) {
-      const angle = i / profile.points * TAU;
-      let radial = 1
-        + .035 * Math.sin(2 * angle + phase2)
-        + .018 * Math.sin(5 * angle + phase5)
-        + rand(-profile.roughness, profile.roughness);
-
-      for (const feature of features) {
-        const diff = angleDiff(angle, feature.angle);
-        const bump = Math.exp(-.5 * (diff / feature.width) ** 2);
-        radial += feature.type === 'dent' ? -feature.amp * bump : feature.amp * bump;
+    // 一部を広く膨らませ、丸い正多角形に見えない重量差を作る。
+    if (kind !== 'speck') {
+      const lobeCount = randInt(1, 2);
+      for (let i = 0; i < lobeCount; i++) {
+        const index = randInt(0, contour.length - 1);
+        const amp = rand(.05, kind === 'core' ? .12 : .09);
+        contour[index].radius += amp;
+        contour[(index + contour.length - 1) % contour.length].radius += amp * .30;
+        contour[(index + 1) % contour.length].radius += amp * .30;
       }
-
-      const px = Math.cos(angle) * baseRadius * radial * stretch;
-      const py = Math.sin(angle) * baseRadius * radial / stretch;
-      points.push({
-        x: cx + px * cr - py * sr,
-        y: cy + px * sr + py * cr,
-      });
     }
-    return points;
+
+    for (let i = 0; i < randInt(...profile.notches); i++) {
+      const index = randInt(0, contour.length - 1);
+      contour[index].radius = rand(...profile.notchRadius);
+    }
+
+    const extra = [];
+    const clusterCount = randInt(...profile.jaggedClusters);
+    for (let i = 0; i < clusterCount; i++) {
+      const center = rng() < .60
+        ? flowDirection + rand(-1.0, 1.0)
+        : rand(0, TAU);
+      const teeth = randInt(...profile.clusterTeeth);
+      for (let tooth = 0; tooth < teeth; tooth++) {
+        const angle = (center + rand(-.20, .20) + TAU) % TAU;
+        const width = step * rand(.08, .16);
+        const root = rand(...profile.toothRoot);
+        extra.push(
+          { angle: (angle - width + TAU) % TAU, radius: root },
+          { angle, radius: rand(...profile.toothTip) },
+          { angle: (angle + width) % TAU, radius: root * rand(.96, 1.05) },
+        );
+
+        // 尖りの隣に切れ込みを置き、STARTのような急な輪郭変化を作る。
+        if (rng() < .55) {
+          extra.push({
+            angle: (angle + (rng() < .5 ? -1 : 1) * step * rand(.22, .42) + TAU) % TAU,
+            radius: rand(.62, .82),
+          });
+        }
+      }
+    }
+
+    if (rng() < profile.longSpikeChance) {
+      const angle = rng() < .75
+        ? (flowDirection + rand(-.50, .50) + TAU) % TAU
+        : rand(0, TAU);
+      const width = step * rand(.04, .08);
+      const root = rand(.70, .86);
+      extra.push(
+        { angle: (angle - width + TAU) % TAU, radius: root },
+        { angle, radius: rand(...profile.longSpikeTip) },
+        { angle: (angle + width) % TAU, radius: root * rand(.96, 1.04) },
+      );
+    }
+
+    const ovalAngle = rand(0, TAU);
+    const ovalAmount = kind === 'core' ? rand(-.08, .08) : rand(-.06, .06);
+    return [...contour, ...extra]
+      .sort((a, b) => a.angle - b.angle)
+      .map(point => {
+        const oval = 1 + ovalAmount * Math.cos(2 * (point.angle - ovalAngle));
+        const radius = baseRadius * point.radius * oval;
+        return {
+          x: cx + Math.cos(point.angle) * radius,
+          y: cy + Math.sin(point.angle) * radius,
+        };
+      });
   }
 
   function rasterizeSplashPolygon(points) {
@@ -407,9 +435,34 @@
     return cells;
   }
 
+  function largestCellComponent(cells) {
+    if (!cells.size) return cells;
+    const visited = new Set();
+    let largest = new Set();
+
+    for (const start of cells) {
+      if (visited.has(start)) continue;
+      const component = new Set([start]);
+      const queue = [start];
+      visited.add(start);
+      for (let i = 0; i < queue.length; i++) {
+        const p = parseKey(queue[i]);
+        for (const [dx, dy] of neighbors) {
+          const next = key(p.x + dx, p.y + dy);
+          if (!cells.has(next) || visited.has(next)) continue;
+          visited.add(next);
+          component.add(next);
+          queue.push(next);
+        }
+      }
+      if (component.size > largest.size) largest = component;
+    }
+    return largest;
+  }
+
   function addSplashIsland(cx, cy, baseRadius, kind, flowDirection, target) {
     const points = createSplashIslandPoints(cx, cy, baseRadius, kind, flowDirection);
-    const cells = rasterizeSplashPolygon(points);
+    const cells = largestCellComponent(rasterizeSplashPolygon(points));
     if (!cells.size) return null;
     for (const k of cells) {
       target.add(k);
@@ -422,10 +475,10 @@
 
   function chooseSplashCenter(impact, radius, kind, index, directions, placed) {
     const range = kind === 'core'
-      ? (index === 0 ? [5, 24] : [18, CONFIG.splash.coreSpread])
+      ? (index === 0 ? [3, 14] : [10, CONFIG.splash.coreSpread])
       : kind === 'droplet'
-        ? [30, CONFIG.splash.spread]
-        : [50, CONFIG.splash.farSpread];
+        ? [15, CONFIG.splash.spread]
+        : [22, CONFIG.splash.farSpread];
     const bias = CONFIG.splash.radialBias[kind];
     let candidate = { x: impact.x, y: impact.y };
 
@@ -446,8 +499,8 @@
         const factor = kind === 'core' && other.kind === 'core'
           ? 1.0
           : kind !== 'speck' && other.kind !== 'speck'
-            ? .72
-            : .20;
+            ? .68
+            : .12;
         return Math.hypot(candidate.x - other.x, candidate.y - other.y)
           >= factor * (radius + other.radius);
       });
