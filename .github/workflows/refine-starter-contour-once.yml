@@ -1,0 +1,159 @@
+name: Refine starter contour once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refine-starter-contour-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refine starter contour
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.js')
+          s = p.read_text(encoding='utf-8')
+          start = s.index('  function createStarterPuddle() {')
+          end = s.index('\nfunction splashPoint(', start)
+          new = r'''  function carveOpenStarterValley(cx, cy, angle, bodyRadius, valleyRadius, target, maxY) {
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    const baseDistance = bodyRadius + valleyRadius * .20;
+    const passes = [
+      { offset: 0, scale: 1.00 },
+      { offset: .35, scale: .85 },
+      { offset: .70, scale: .65 },
+    ];
+    for (const pass of passes) {
+      const distance = baseDistance + valleyRadius * pass.offset;
+      carveDisk(
+        cx + ux * distance,
+        cy + uy * distance,
+        valleyRadius * pass.scale,
+        target,
+        maxY
+      );
+    }
+  }
+
+  function createStarterPuddle() {
+    const target = new Set();
+    const radius = CONFIG.starterPuddle.radius;
+    const edge = CONFIG.rows - 1;
+    const bodyRadius = radius * .83;
+    const featureScale = radius / 1.5;
+    const cx = starterAnchor().x + rand(-2, 2);
+    const cy = edge + bodyRadius * .68;
+
+    // Keep the enlarged buried body, but decouple rim detail from its 1.5x scale.
+    addDisk(cx, cy, bodyRadius, target);
+
+    // Four to six uneven rim bulges. Only one is allowed to dominate.
+    const count = randInt(4, 6);
+    const hero = randInt(0, count - 1);
+    const angles = [];
+    for (let i = 0; i < count; i++) {
+      const slot = (i + rand(.12, .88)) / count;
+      const angle = (210 + 140 * slot) * Math.PI / 180;
+      angles.push(angle);
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
+      const lobeRadius = featureScale * (i === hero ? rand(.13, .18) : rand(.06, .12));
+      const distance = bodyRadius + lobeRadius * rand(.08, .24);
+      addDisk(
+        cx + ux * distance,
+        cy + uy * distance,
+        lobeRadius,
+        target
+      );
+
+      // Occasionally give the dominant bulge a smaller shoulder so it is not a perfect circle.
+      if (i === hero && rng() < .65) {
+        const side = rng() < .5 ? -1 : 1;
+        const shoulderAngle = angle + side * rand(.10, .18);
+        const shoulderRadius = lobeRadius * rand(.42, .58);
+        addDisk(
+          cx + Math.cos(shoulderAngle) * (bodyRadius + lobeRadius * .32),
+          cy + Math.sin(shoulderAngle) * (bodyRadius + lobeRadius * .32),
+          shoulderRadius,
+          target
+        );
+      }
+    }
+
+    // Open valleys outward so carving produces concavities, never enclosed holes.
+    const valleySlots = [];
+    for (let i = 0; i < angles.length - 1; i++) valleySlots.push(i);
+    const valleyCount = randInt(2, Math.min(4, valleySlots.length));
+    const chosenValleys = shuffled(valleySlots).slice(0, valleyCount);
+    for (const i of chosenValleys) {
+      const angle = (angles[i] + angles[i + 1]) / 2 + rand(-.015, .015);
+      const valleyRadius = featureScale * rand(.065, .115);
+      carveOpenStarterValley(
+        cx,
+        cy,
+        angle,
+        bodyRadius,
+        valleyRadius,
+        target,
+        edge - 17 * GRID_SCALE
+      );
+    }
+
+    // A few small secondary bulges break any remaining regular rhythm.
+    const smallCount = randInt(0, 2);
+    for (let i = 0; i < smallCount; i++) {
+      const angle = rand(218, 322) * Math.PI / 180;
+      const lobeRadius = featureScale * rand(.025, .045);
+      const distance = bodyRadius + lobeRadius * .18;
+      addDisk(
+        cx + Math.cos(angle) * distance,
+        cy + Math.sin(angle) * distance,
+        lobeRadius,
+        target
+      );
+    }
+
+    // Only the mass connected to the bottom edge is the gameplay START.
+    const queue = [];
+    const active = new Set();
+    for (const k of target) {
+      const p = parseKey(k);
+      if (p.y < CONFIG.rows - 2) continue;
+      active.add(k);
+      queue.push(k);
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const p = parseKey(queue[i]);
+      for (const [dx, dy] of neighbors) {
+        const nk = key(p.x + dx, p.y + dy);
+        if (active.has(nk) || !target.has(nk)) continue;
+        active.add(nk);
+        queue.push(nk);
+      }
+    }
+
+    starterInk = active.size ? active : target;
+    for (const k of starterInk) ink.add(k);
+  }
+'''
+          s = s[:start] + new + s[end:]
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Validate JavaScript
+        run: |
+          node --check app.js
+          git diff --check
+      - name: Commit refinement
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git commit -m 'Refine enlarged starter contour'
+          git push
