@@ -1,0 +1,43 @@
+name: Enlarge starter radius 1.5x once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/enlarge-starter-radius-15x-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enlarge starter radius and sink center
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.js')
+          s = p.read_text(encoding='utf-8')
+          replacements = [
+              ('starterPuddle: { radius: 56 * GRID_SCALE }', 'starterPuddle: { radius: 84 * GRID_SCALE }'),
+              ('minHomeDistance: 56 * GRID_SCALE', 'minHomeDistance: 84 * GRID_SCALE'),
+              ('const cy = edge + bodyRadius * .38;', 'const cy = edge + bodyRadius * .68;'),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'missing expected text: {old}')
+              s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Validate JavaScript
+        run: |
+          node --check app.js
+          git diff --check
+      - name: Commit starter enlargement
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git commit -m 'Enlarge starter radius by 1.5x'
+          git push
