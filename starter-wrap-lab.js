@@ -59,39 +59,52 @@
   }
 
   function buildShape(slot, size = FULL_SIZE) {
-    const wrap = clamp(slot.wrap, 0, 100) / 100;
-    const exponent = lerp(3.8, 2.0, wrap);
-    const coreR = size * lerp(.215, .240, wrap);
-    const coverage = size * .055;
-    const source = prepared.get(slot.profileId);
-    const reliefs = new Array(SAMPLE_COUNT);
+    const wrap = clamp(Number(slot.wrap) || 0, 0, 100) / 100;
+    const profile = PROFILE_MAP.get(slot.profileId);
+    const raw = profile && Array.isArray(profile.values) && profile.values.length >= 4
+      ? profile.values.map(Number)
+      : [0, .5, 1, .5, 0];
 
-    for (let i = 0; i < SAMPLE_COUNT; i++) {
-      const t = i / SAMPLE_COUNT;
-      const broad = sample(source.broad, t);
-      const detail = sample(source.detail, t);
-      reliefs[i] = Math.max(
-        size * .025,
-        coverage + size * (.075 * broad + .45 * detail)
-      );
-    }
+    const minV = Math.min(...raw);
+    const maxV = Math.max(...raw);
+    const span = Math.max(.0001, maxV - minV);
+    const normalized = raw.map(v => (v - minV) / span);
+    const smoothProfile = smoothCircular(normalized, 2);
+    const mean = smoothProfile.reduce((a, b) => a + b, 0) / smoothProfile.length;
 
-    const smoothReliefs = smoothCircular(reliefs, 5);
+    // 巻き具合は、平面寄りの丸角形 → 円形へ連続的に変える。
+    // 元の平面輪郭そのものは半径方向の起伏として保持する。
+    const exponent = lerp(4.8, 2.0, wrap);
+    const yScale = lerp(.66, 1.0, wrap);
+    const coreR = size * .225;
+    const coverage = size * .072;
+    const reliefAmp = size * .115;
     const cx = size * .5;
-    const cy = size * .505;
+    const cy = size * .515;
     const points = [];
 
     for (let i = 0; i < SAMPLE_COUNT; i++) {
-      const theta = i / SAMPLE_COUNT * Math.PI * 2 - Math.PI / 2;
+      const t = i / SAMPLE_COUNT;
+      // 平面型の端同士が上端で直結しないよう、継ぎ目は側面へ逃がす。
+      const sourceT = (t + .19) % 1;
+      const profileValue = sample(smoothProfile, sourceT);
+      const relief = Math.max(size * .035, coverage + reliefAmp * (profileValue - mean));
+
+      const theta = t * Math.PI * 2 - Math.PI / 2;
       const base = superellipse(theta, exponent);
       const len = Math.hypot(base.x, base.y) || 1;
-      const relief = Math.max(size * .025, smoothReliefs[i]);
-      points.push({
-        x: cx + base.x * coreR + base.x / len * relief,
-        y: cy + base.y * coreR + base.y / len * relief,
-      });
+      const ux = base.x / len;
+      const uy = base.y / len;
+
+      const x = cx + base.x * coreR + ux * relief;
+      const y = cy + (base.y * coreR + uy * relief) * yScale;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        throw new Error(`invalid point: ${slot.profileId}`);
+      }
+      points.push({ x, y });
     }
-    return { points, core: { cx, cy, r: coreR } };
+
+    return { points, core: { cx, cy, r: coreR, yScale } };
   }
 
   function bounds(points) {
@@ -104,21 +117,12 @@
   }
 
   function path(ctx, points) {
-    const n = points.length;
+    if (!points.length) return;
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 0; i < n; i++) {
-      const p0 = points[(i - 1 + n) % n];
-      const p1 = points[i];
-      const p2 = points[(i + 1) % n];
-      const p3 = points[(i + 2) % n];
-      ctx.bezierCurveTo(
-        p1.x + (p2.x - p0.x) / 6,
-        p1.y + (p2.y - p0.y) / 6,
-        p2.x - (p3.x - p1.x) / 6,
-        p2.y - (p3.y - p1.y) / 6,
-        p2.x, p2.y
-      );
+    // 240点の折れ線なら画面上では十分滑らかで、Safariでも安定する。
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
     }
     ctx.closePath();
   }
@@ -152,7 +156,7 @@
       ctx.setLineDash([5, 5]);
       ctx.strokeStyle = 'rgba(204,81,64,.9)';
       ctx.beginPath();
-      ctx.arc(shape.core.cx, shape.core.cy, shape.core.r, 0, Math.PI * 2);
+      ctx.ellipse(shape.core.cx, shape.core.cy, shape.core.r, shape.core.r * shape.core.yScale, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -306,8 +310,16 @@
       const slot = state.slots[index];
       const full = el.querySelector('.full-canvas');
       const preview = el.querySelector('.preview-canvas');
-      drawFull(full, slot, showCore);
-      drawPreview(preview, slot);
+      try {
+        drawFull(full, slot, showCore);
+        drawPreview(preview, slot);
+      } catch (err) {
+        const ctx = full.getContext('2d');
+        ctx.fillStyle = '#8b2f2f';
+        ctx.font = '16px sans-serif';
+        ctx.fillText('描画エラー', 20, 40);
+        console.error(err);
+      }
 
       const slider = el.querySelector('.wrap-slider');
       const value = el.querySelector('.wrap-value');
