@@ -285,6 +285,82 @@
     }
   }
 
+  function addSplashTaperedStroke(x0, y0, x1, y1, startRadius, endRadius, target) {
+    const distance = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.max(2, Math.ceil(distance / .8));
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const norm = Math.hypot(dx, dy) || 1;
+    const px = -dy / norm;
+    const py = dx / norm;
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const radius = Math.max(.55, startRadius + (endRadius - startRadius) * t);
+      const wobble = Math.sin(t * Math.PI) * rand(-.35, .35);
+      addDisk(
+        x0 + dx * t + px * wobble,
+        y0 + dy * t + py * wobble,
+        radius,
+        target
+      );
+    }
+  }
+
+  function addSplashBlob(cx, cy, baseRadius, kind, target) {
+    // Preserve the old blob's mass while roughening only its silhouette.
+    addDisk(cx, cy, baseRadius * rand(.74, .94), target);
+    const lobes = kind === 'core' ? [2, 5] : [1, 3];
+    const lobeCount = randInt(...lobes);
+
+    for (let i = 0; i < lobeCount; i++) {
+      const angle = rand(0, TAU);
+      const dist = rand(baseRadius * .18, baseRadius * .76);
+      addDisk(
+        cx + Math.cos(angle) * dist,
+        cy + Math.sin(angle) * dist,
+        baseRadius * rand(.29, .62),
+        target
+      );
+    }
+
+    // Short attached spikes create sumi/brush energy without turning the splash into one connected mass.
+    const spikeCount = kind === 'core' ? randInt(6, 10) : randInt(3, 5);
+    const flowDirection = rand(0, TAU);
+    for (let i = 0; i < spikeCount; i++) {
+      const angle = rng() < .35
+        ? flowDirection + rand(-.55, .55)
+        : rand(0, TAU);
+      const rootDistance = rand(baseRadius * .34, baseRadius * .62);
+      let length = baseRadius * rand(.30, .82);
+      if (kind === 'core' && rng() < .16) length *= rand(1.15, 1.45);
+
+      const x0 = cx + Math.cos(angle) * rootDistance;
+      const y0 = cy + Math.sin(angle) * rootDistance;
+      const x1 = cx + Math.cos(angle) * (rootDistance + length);
+      const y1 = cy + Math.sin(angle) * (rootDistance + length);
+      addSplashTaperedStroke(
+        x0, y0, x1, y1,
+        Math.max(.75, baseRadius * rand(.055, .085)),
+        rand(.48, .68),
+        target
+      );
+    }
+
+    // A few very short teeth break the digital-looking round edge but remain attached.
+    const toothCount = kind === 'core' ? randInt(2, 4) : randInt(1, 2);
+    for (let i = 0; i < toothCount; i++) {
+      const angle = rand(0, TAU);
+      const rootDistance = rand(baseRadius * .62, baseRadius * .84);
+      const extension = rand(2, 5);
+      const x0 = cx + Math.cos(angle) * rootDistance;
+      const y0 = cy + Math.sin(angle) * rootDistance;
+      const x1 = cx + Math.cos(angle) * (rootDistance + extension);
+      const y1 = cy + Math.sin(angle) * (rootDistance + extension);
+      addSplashTaperedStroke(x0, y0, x1, y1, rand(.7, 1.1), .5, target);
+    }
+  }
+
   function createStarterPuddle() {
     const polygon = starterShapePoints();
     const bounds = starterShapeBounds();
@@ -407,14 +483,14 @@
         directions,
         CONFIG.splash.radialBias.core
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
+      addSplashBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), 'core', splashInk);
     }
     for (let i = 0; i < droplets; i++) {
       const p = splashPointBiased(
         impact.x, impact.y, 18, CONFIG.splash.spread,
         directions, CONFIG.splash.radialBias.droplet
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
+      addSplashBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), 'droplet', splashInk);
     }
     for (let i = 0; i < specks; i++) {
       const p = splashPointBiased(
