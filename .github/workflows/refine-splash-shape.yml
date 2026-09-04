@@ -1,0 +1,31 @@
+name: Refine splash shape
+
+on:
+  push:
+    paths:
+      - '.github/scripts/refine_splash_shape.py'
+      - '.github/workflows/refine-splash-shape.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply refined splash migration
+        run: python .github/scripts/refine_splash_shape.py
+      - name: Check JavaScript syntax
+        run: node --check app.js
+      - name: Commit app.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Refine splash scale and angular ink shapes"
+            git push
+          fi
