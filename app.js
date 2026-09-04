@@ -323,76 +323,130 @@ function inBounds(x, y) {
     }
   }
 
-  function carveOpenStarterValley(cx, cy, angle, bodyRadius, valleyRadius, target, maxY) {
-    const ux = Math.cos(angle);
-    const uy = Math.sin(angle);
-    const baseDistance = bodyRadius + valleyRadius * .20;
-    const passes = [
-      { offset: 0, scale: 1.00 },
-      { offset: .35, scale: .85 },
-      { offset: .70, scale: .65 },
-    ];
-    for (const pass of passes) {
-      const distance = baseDistance + valleyRadius * pass.offset;
-      carveDisk(
-        cx + ux * distance,
-        cy + uy * distance,
-        valleyRadius * pass.scale,
-        target,
-        maxY
-      );
-    }
-  }
-
   function createStarterPuddle() {
     const target = new Set();
     const radius = CONFIG.starterPuddle.radius;
     const edge = CONFIG.rows - 1;
+    const cx = starterAnchor().x + rand(-2.5 * GRID_SCALE, 2.5 * GRID_SCALE);
 
-    // Four retained starter lineages. These are deliberately irregular profiles,
-    // not circles that are deformed after the fact.
-    const templates = [
-      [0.000,0.149,0.278,0.387,0.480,0.551,0.594,0.647,0.813,0.900,0.752,0.679,0.893,1.000,0.710,0.629,0.774,0.775,0.702,0.756,0.961,0.918,0.683,0.691,0.841,0.858,0.673,0.586,0.680,0.773,0.704,0.540,0.501,0.539,0.578,0.560,0.453,0.324,0.218,0.110,0.000],
-      [0.000,0.102,0.192,0.268,0.333,0.390,0.440,0.489,0.558,0.618,0.556,0.466,0.606,0.699,0.547,0.532,0.579,0.568,0.509,0.658,1.000,0.626,0.543,0.518,0.575,0.706,0.716,0.552,0.506,0.554,0.586,0.547,0.467,0.405,0.367,0.334,0.293,0.237,0.168,0.089,0.000],
-      [0.000,0.134,0.240,0.309,0.370,0.457,0.571,0.717,0.879,0.853,0.687,0.652,0.738,0.770,0.573,0.517,0.625,0.651,0.590,0.566,0.690,0.758,0.703,0.660,0.830,1.000,0.743,0.564,0.670,0.776,0.702,0.543,0.528,0.560,0.580,0.521,0.395,0.281,0.185,0.092,0.000],
-      [0.000,0.146,0.272,0.377,0.467,0.527,0.556,0.602,0.757,0.828,0.720,0.792,0.992,0.721,0.704,0.812,0.693,0.623,0.894,0.869,0.699,0.789,0.879,0.761,0.686,0.896,1.000,0.697,0.601,0.713,0.789,0.706,0.571,0.522,0.503,0.481,0.425,0.331,0.231,0.121,0.000],
+    // Build a full 2D ink mass first. The visible top contour is only a result
+    // of cropping that mass at the bottom of the board; it is not generated as
+    // a height profile or a row of hills.
+    const bodies = [
+      {
+        x: cx + radius * rand(-.26, -.10),
+        radius: radius * rand(.44, .50),
+        depth: rand(.45, .58),
+      },
+      {
+        x: cx + radius * rand(-.02, .14),
+        radius: radius * rand(.43, .49),
+        depth: rand(.47, .60),
+      },
+      {
+        x: cx + radius * rand(.20, .36),
+        radius: radius * rand(.32, .42),
+        depth: rand(.50, .65),
+      },
     ];
 
-    const profile = templates[randInt(0, templates.length - 1)];
-    const mirrored = rng() < .5;
-    const halfWidth = radius * rand(.88, .98);
-    const visibleHeight = radius * rand(.36, .43);
-    const baseHeight = radius * rand(.11, .15);
-    const cx = starterAnchor().x + rand(-3 * GRID_SCALE, 3 * GRID_SCALE);
-    const noiseKnots = Array.from({ length: 9 }, () => rand(-.018, .018));
-
-    function sample(values, t) {
-      const scaled = clamp(t, 0, 1) * (values.length - 1);
-      const i = Math.min(values.length - 2, Math.floor(scaled));
-      const f = scaled - i;
-      return values[i] * (1 - f) + values[i + 1] * f;
+    for (const body of bodies) {
+      body.y = edge + body.radius * body.depth;
+      addDisk(body.x, body.y, body.radius, target);
     }
 
-    for (let x = Math.floor(cx - halfWidth); x <= Math.ceil(cx + halfWidth); x++) {
-      if (x < 0 || x >= CONFIG.cols) continue;
-      const u = (x - cx) / halfWidth;
-      if (Math.abs(u) > 1) continue;
-
-      const profileU = mirrored ? -u : u;
-      const profileValue = sample(profile, (profileU + 1) * .5);
-      const noise = sample(noiseKnots, (u + 1) * .5);
-      const envelope = Math.pow(Math.max(0, 1 - Math.pow(Math.abs(u), 6)), .68);
-      const height = Math.max(
-        baseHeight * envelope,
-        visibleHeight * Math.max(0, profileValue + noise)
+    // Broad perimeter lobes belong to the mass itself rather than sitting on a
+    // flat baseline. Their size and spacing vary independently.
+    const lobeCount = randInt(4, 7);
+    for (let i = 0; i < lobeCount; i++) {
+      const body = bodies[randInt(0, bodies.length - 1)];
+      const angle = rand(205, 335) * Math.PI / 180;
+      const lobeRadius = radius * rand(.035, .085);
+      const distance = body.radius + lobeRadius * rand(-.16, .22);
+      addDisk(
+        body.x + Math.cos(angle) * distance,
+        body.y + Math.sin(angle) * distance,
+        lobeRadius,
+        target
       );
-      const top = Math.max(0, Math.round(edge - height));
-
-      // Fill downward so START is always a single cell-native ink mass.
-      for (let y = top; y <= edge; y++) target.add(key(x, y));
     }
 
-    starterInk = target;
+    // A few short fluid projections add necks and rounded tips. They grow from
+    // the 2D mass itself, not from a horizontal top edge.
+    const armCount = randInt(3, 6);
+    for (let i = 0; i < armCount; i++) {
+      const body = bodies[randInt(0, bodies.length - 1)];
+      const angle = rand(205, 335) * Math.PI / 180;
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
+      const rootDistance = body.radius * rand(.70, .86);
+      const length = radius * rand(.06, .18);
+      const startRadius = radius * rand(.015, .035);
+      const endRadius = radius * rand(.035, .070);
+      const x0 = body.x + ux * rootDistance;
+      const y0 = body.y + uy * rootDistance;
+      const x1 = x0 + ux * length;
+      const y1 = y0 + uy * length;
+
+      addTaperedCellStroke(x0, y0, x1, y1, startRadius, endRadius, target);
+      addDisk(x1, y1, endRadius * rand(.95, 1.15), target);
+    }
+
+    // Find the real outside contour of the mass and cut only valleys that are
+    // open to that exterior. This avoids internal holes and avoids inventing a
+    // separate top-edge profile.
+    function starterTopAt(sampleX, window = 2 * GRID_SCALE) {
+      const left = Math.max(0, Math.floor(sampleX - window));
+      const right = Math.min(CONFIG.cols - 1, Math.ceil(sampleX + window));
+      for (let y = 0; y <= edge; y++) {
+        for (let x = left; x <= right; x++) {
+          if (target.has(key(x, y))) return y;
+        }
+      }
+      return null;
+    }
+
+    const valleyCount = randInt(2, 4);
+    for (let i = 0; i < valleyCount; i++) {
+      let x = cx;
+      let top = null;
+      for (let tries = 0; tries < 30; tries++) {
+        x = Math.round(cx + radius * rand(-.55, .55));
+        top = starterTopAt(x);
+        if (top !== null && top < edge - 5 * GRID_SCALE) break;
+      }
+      if (top === null) continue;
+
+      const valleyRadius = radius * rand(.035, .070);
+      carveDisk(
+        x,
+        top + valleyRadius * rand(.15, .35),
+        valleyRadius,
+        target
+      );
+    }
+
+    // Only the mass connected to the board bottom is gameplay START. If a cut
+    // detaches a small cap, it is discarded instead of becoming a loose droplet.
+    const queue = [];
+    const active = new Set();
+    for (const k of target) {
+      const p = parseKey(k);
+      if (p.y < CONFIG.rows - 2) continue;
+      active.add(k);
+      queue.push(k);
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const p = parseKey(queue[i]);
+      for (const [dx, dy] of neighbors) {
+        const nk = key(p.x + dx, p.y + dy);
+        if (active.has(nk) || !target.has(nk)) continue;
+        active.add(nk);
+        queue.push(nk);
+      }
+    }
+
+    starterInk = active.size ? active : target;
     for (const k of starterInk) ink.add(k);
   }
 
