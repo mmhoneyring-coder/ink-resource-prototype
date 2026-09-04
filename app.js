@@ -323,70 +323,90 @@ function inBounds(x, y) {
     }
   }
 
+  function carveOpenStarterValley(cx, cy, angle, bodyRadius, valleyRadius, target, maxY) {
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    const baseDistance = bodyRadius + valleyRadius * .20;
+    const passes = [
+      { offset: 0, scale: 1.00 },
+      { offset: .35, scale: .85 },
+      { offset: .70, scale: .65 },
+    ];
+    for (const pass of passes) {
+      const distance = baseDistance + valleyRadius * pass.offset;
+      carveDisk(
+        cx + ux * distance,
+        cy + uy * distance,
+        valleyRadius * pass.scale,
+        target,
+        maxY
+      );
+    }
+  }
+
   function createStarterPuddle() {
     const target = new Set();
     const radius = CONFIG.starterPuddle.radius;
     const edge = CONFIG.rows - 1;
     const bodyRadius = radius * .83;
-    const cx = starterAnchor().x + rand(-1.4, 1.4);
+    const featureScale = radius / 1.5;
+    const cx = starterAnchor().x + rand(-2, 2);
     const cy = edge + bodyRadius * .68;
 
-    // Main mass: size remains the same as the current starter.
     addDisk(cx, cy, bodyRadius, target);
 
-    // Buried bulges keep the body from becoming a perfect semicircle.
-    for (let i = 0; i < 2; i++) {
-      const angle = rand(220 * Math.PI / 180, 320 * Math.PI / 180);
-      const distance = bodyRadius * rand(.10, .25);
-      addDisk(
-        cx + Math.cos(angle) * distance,
-        cy + Math.sin(angle) * distance,
-        radius * rand(.25, .33),
-        target
-      );
-    }
-
-    // Rounded outward fingers create the convex parts of the rim.
-    const count = randInt(5, 7);
-    const hero = randInt(Math.max(1, Math.floor(count / 3)), Math.min(count - 2, Math.floor(2 * count / 3)));
+    const count = randInt(4, 6);
+    const hero = randInt(0, count - 1);
     const angles = [];
     for (let i = 0; i < count; i++) {
-      const angle = (208 + 124 * (i + .5) / count + rand(-7, 7)) * Math.PI / 180;
+      const slot = (i + rand(.12, .88)) / count;
+      const angle = (210 + 140 * slot) * Math.PI / 180;
       angles.push(angle);
       const ux = Math.cos(angle);
       const uy = Math.sin(angle);
-      const rootDistance = bodyRadius * rand(.68, .78);
-      const strong = i === hero;
-      const extra = radius * rand(strong ? .26 : .12, strong ? .40 : .29);
-      const startRadius = radius * rand(strong ? .14 : .11, strong ? .19 : .17);
-      const endRadius = radius * rand(strong ? .11 : .07, strong ? .15 : .125);
-      const x0 = cx + ux * rootDistance;
-      const y0 = cy + uy * rootDistance;
-      const x1 = cx + ux * (rootDistance + extra);
-      const y1 = cy + uy * (rootDistance + extra);
+      const lobeRadius = featureScale * (i === hero ? rand(.13, .18) : rand(.06, .12));
+      const distance = bodyRadius + lobeRadius * rand(.08, .24);
+      addDisk(cx + ux * distance, cy + uy * distance, lobeRadius, target);
 
-      addTaperedCellStroke(x0, y0, x1, y1, startRadius, endRadius, target);
-      addDisk(x1, y1, endRadius * rand(1.04, 1.16), target);
+      if (i === hero && rng() < .65) {
+        const side = rng() < .5 ? -1 : 1;
+        const shoulderAngle = angle + side * rand(.10, .18);
+        const shoulderRadius = lobeRadius * rand(.42, .58);
+        addDisk(
+          cx + Math.cos(shoulderAngle) * (bodyRadius + lobeRadius * .32),
+          cy + Math.sin(shoulderAngle) * (bodyRadius + lobeRadius * .32),
+          shoulderRadius,
+          target
+        );
+      }
     }
 
-    // Bite into the rim between fingers to create genuine concave valleys.
-    // Keep the lower 17 rows intact so the touchable support remains broad.
-    for (let i = 0; i < angles.length - 1; i++) {
-      if (i === hero - 1 || i === hero) continue;
-      const mid = (angles[i] + angles[i + 1]) / 2 + rand(-.035, .035);
-      const ux = Math.cos(mid);
-      const uy = Math.sin(mid);
-      const distance = bodyRadius * rand(.96, 1.08);
-      carveDisk(
-        cx + ux * distance,
-        cy + uy * distance,
-        radius * rand(.10, .16),
-        target,
+    const valleySlots = [];
+    for (let i = 0; i < angles.length - 1; i++) valleySlots.push(i);
+    const valleyCount = randInt(2, Math.min(4, valleySlots.length));
+    const chosenValleys = shuffled(valleySlots).slice(0, valleyCount);
+    for (const i of chosenValleys) {
+      const angle = (angles[i] + angles[i + 1]) / 2 + rand(-.015, .015);
+      const valleyRadius = featureScale * rand(.065, .115);
+      carveOpenStarterValley(
+        cx, cy, angle, bodyRadius, valleyRadius, target,
         edge - 17 * GRID_SCALE
       );
     }
 
-    // Only the mass connected to the bottom edge is the gameplay START.
+    const smallCount = randInt(0, 2);
+    for (let i = 0; i < smallCount; i++) {
+      const angle = rand(218, 322) * Math.PI / 180;
+      const lobeRadius = featureScale * rand(.025, .045);
+      const distance = bodyRadius + lobeRadius * .18;
+      addDisk(
+        cx + Math.cos(angle) * distance,
+        cy + Math.sin(angle) * distance,
+        lobeRadius,
+        target
+      );
+    }
+
     const queue = [];
     const active = new Set();
     for (const k of target) {
