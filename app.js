@@ -370,7 +370,6 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     updateResources();
     phase = 'brush';
     brushRemaining = CONFIG.brushAreaPerTurn;
-    fitCamera(false);
     updateHud();
     updateActionAvailability();
     render();
@@ -693,7 +692,6 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     round++;
     phase = 'splash';
     brushRemaining = CONFIG.brushAreaPerTurn;
-    fitCamera(false);
     updateHud();
     updateActionAvailability();
     render();
@@ -719,15 +717,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     canvas.width = Math.max(1, Math.round(rect.width * dpr));
     canvas.height = Math.max(1, Math.round(rect.height * dpr));
     ctx.setTransform(dpr,0,0,dpr,0,0);
-
-    // A viewport/layout change must not leave the baseline view cropped.
-    if (gesture && pointers.size >= 2) {
-      clampCamera();
-    } else {
-      camera.zoom = CONFIG.zoom.default;
-      centerCamera();
-      updateZoomLabel();
-    }
+    clampCamera();
     render();
   }
 
@@ -777,15 +767,11 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     render();
   }
 
-  function fitCamera(renderNow = true) {
+  function resetCamera() {
     camera.zoom = CONFIG.zoom.default;
     centerCamera();
     updateZoomLabel();
-    if (renderNow) render();
-  }
-
-  function resetCamera() {
-    fitCamera(true);
+    render();
   }
 
   function pointerToCell(event) {
@@ -1130,14 +1116,9 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
       const distance = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) || 1;
       const zoom = clamp(gesture.zoom * distance / gesture.distance, CONFIG.zoom.min, CONFIG.zoom.max);
       camera.zoom = zoom;
-      if (zoom <= CONFIG.zoom.min + .002) {
-        camera.zoom = CONFIG.zoom.min;
-        centerCamera();
-      } else {
-        camera.tx = mx - gesture.wx * zoom;
-        camera.ty = my - gesture.wy * zoom;
-        clampCamera();
-      }
+      camera.tx = mx - gesture.wx * zoom;
+      camera.ty = my - gesture.wy * zoom;
+      clampCamera();
       updateZoomLabel();
       render();
       return;
@@ -1169,10 +1150,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     }
 
     if (shouldFinishStroke && !gesture) finishStroke();
-    if (pointers.size < 2) {
-      gesture = null;
-      if (camera.zoom <= CONFIG.zoom.min + .002) fitCamera(false);
-    }
+    if (pointers.size < 2) gesture = null;
   }
 
   canvas.addEventListener('pointerup', endPointer);
