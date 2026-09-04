@@ -27,7 +27,7 @@
       radialBias: { core: 0.40, droplet: 0.50, speck: 0.58 },
     },
     resources: {
-      minHomeDistance: 34,
+      minHomeDistance: 48,
       minGap: 10,
       scoreStep: 10,
       counts: {
@@ -225,48 +225,92 @@ function inBounds(x, y) {
     }
   }
 
+  function addConnectedTaperedStroke(x0, y0, x1, y1, startRadius, endRadius, target) {
+    const distance = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.max(2, Math.ceil(distance / 1.15));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const radius = startRadius + (endRadius - startRadius) * t;
+      const jitter = Math.sin(t * Math.PI) * .35;
+      addDisk(
+        x0 + (x1 - x0) * t + rand(-jitter, jitter),
+        y0 + (y1 - y0) * t + rand(-jitter, jitter),
+        Math.max(.75, radius),
+        target
+      );
+    }
+  }
+
   function createStarterPuddle() {
-  const target = new Set();
-  const anchor = starterAnchor();
-  const radius = CONFIG.starterPuddle.radius;
-  const edge = CONFIG.rows - 1;
-  const cx = anchor.x;
+    const target = new Set();
+    const anchor = starterAnchor();
+    const radius = CONFIG.starterPuddle.radius;
+    const edge = CONFIG.rows - 1;
+    const cx = anchor.x;
 
-  // Treat this as a much larger ink island continuing below the board.
-  // Only its upper rim is visible, so it reads like a cropped coast rather than a mound.
-  addDisk(cx, edge + radius * .50, radius * .92, target);
-  addDisk(cx - radius * .34, edge + radius * .38, radius * .56, target);
-  addDisk(cx + radius * .32, edge + radius * .34, radius * .58, target);
+    // The starter is one connected ink mass continuing below the board.
+    // Keep it dense at the bottom, then give only the connected upper rim brush-like lift.
+    addDisk(cx, edge + radius * .48, radius * .98, target);
+    addDisk(cx - radius * .36, edge + radius * .40, radius * .60, target);
+    addDisk(cx + radius * .34, edge + radius * .36, radius * .62, target);
+    addDisk(cx - radius * .10, edge + radius * .18, radius * .48, target);
+    addDisk(cx + radius * .13, edge + radius * .16, radius * .46, target);
 
-  // Uneven overlapping lobes form the visible shoreline.
-  const rim = [
-    [-.43, .06, .30],
-    [-.25, -.05, .34],
-    [-.08, -.10, .31],
-    [ .10, -.07, .35],
-    [ .28,  .00, .30],
-    [ .43,  .08, .25],
-  ];
-  for (const [dx, dy, rr] of rim) {
-    addDisk(
-      cx + dx * radius + rand(-1.3, 1.3),
-      edge + dy * radius + rand(-1.0, 1.0),
-      rr * radius * rand(.92, 1.08),
-      target
-    );
+    const shoulders = [
+      [-.48, .02, .28],
+      [-.31, -.03, .31],
+      [-.16, -.08, .34],
+      [ .02, -.11, .35],
+      [ .20, -.07, .33],
+      [ .37,  .00, .29],
+      [ .50,  .07, .22],
+    ];
+    for (const [dx, dy, rr] of shoulders) {
+      addDisk(
+        cx + dx * radius + rand(-1.0, 1.0),
+        edge + dy * radius + rand(-.8, .8),
+        rr * radius * rand(.94, 1.07),
+        target
+      );
+    }
+
+    // Connected spikes create the brush/sumi energy seen in the reference.
+    // No detached starter droplets are generated here.
+    const spikes = [
+      [-.36, .42, -.10, 1.5],
+      [-.25, .58, -.16, 1.8],
+      [-.14, .78, -.08, 2.2],
+      [-.04, 1.00,  .04, 2.7],
+      [ .08, .72,  .10, 2.2],
+      [ .20, .56,  .14, 1.9],
+      [ .32, .40,  .12, 1.6],
+    ];
+    for (const [rootX, length, lean, rootSize] of spikes) {
+      const x0 = cx + rootX * radius + rand(-1.0, 1.0);
+      const y0 = edge - radius * .16 + rand(-.8, .8);
+      const x1 = x0 + lean * radius + rand(-1.2, 1.2);
+      const y1 = y0 - length * radius * rand(.88, 1.06);
+      addConnectedTaperedStroke(
+        x0, y0, x1, y1,
+        rootSize * rand(.92, 1.08),
+        rand(.75, 1.05),
+        target
+      );
+    }
+
+    // Short connected teeth keep the rim irregular without creating independent splatter.
+    const teeth = randInt(5, 8);
+    for (let i = 0; i < teeth; i++) {
+      const x0 = cx + rand(-radius * .46, radius * .46);
+      const y0 = edge - rand(radius * .10, radius * .20);
+      const x1 = x0 + rand(-3.2, 3.2);
+      const y1 = y0 - rand(4.0, 9.0);
+      addConnectedTaperedStroke(x0, y0, x1, y1, rand(1.4, 2.2), rand(.7, .95), target);
+    }
+
+    starterInk = target;
+    for (const k of starterInk) ink.add(k);
   }
-
-  // A few tiny connected bulges break up the digital-looking smooth dome.
-  const nubs = randInt(3, 5);
-  for (let i = 0; i < nubs; i++) {
-    const x = cx + rand(-radius * .42, radius * .42);
-    const y = edge - rand(1.5, 5.5);
-    addDisk(x, y, rand(2.8, 4.6), target);
-  }
-
-  starterInk = target;
-  for (const k of starterInk) ink.add(k);
-}
 
 function splashPoint(cx, cy, minDistance, maxDistance) {
     const angle = rand(0, TAU);
