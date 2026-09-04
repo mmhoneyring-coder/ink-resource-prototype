@@ -214,6 +214,19 @@ function inBounds(x, y) {
     }
   }
 
+  function carveDisk(cx, cy, radius, target, maxY = CONFIG.rows - 1) {
+    const r2 = radius * radius;
+    for (let y = Math.floor(cy - radius - 1); y <= Math.ceil(cy + radius + 1); y++) {
+      if (y > maxY || y < 0 || y >= CONFIG.rows) continue;
+      for (let x = Math.floor(cx - radius - 1); x <= Math.ceil(cx + radius + 1); x++) {
+        if (!inBounds(x, y)) continue;
+        const dx = x - cx;
+        const dy = y - cy;
+        if (dx * dx + dy * dy <= r2 + rand(-1.0, 1.0)) target.delete(key(x, y));
+      }
+    }
+  }
+
   function addBlob(cx, cy, baseRadius, lobes = [2, 5], target = ink) {
     addDisk(cx, cy, baseRadius * rand(.72, .98), target);
     const count = randInt(...lobes);
@@ -316,10 +329,10 @@ function inBounds(x, y) {
     const cx = starterAnchor().x + rand(-1.4, 1.4);
     const cy = edge + bodyRadius * .38;
 
-    // The full splat continues below the board; only roughly its upper 40% is visible.
+    // Main mass: size remains the same as the current starter.
     addDisk(cx, cy, bodyRadius, target);
 
-    // Small buried bulges keep the body from becoming a perfect circle.
+    // Buried bulges keep the body from becoming a perfect semicircle.
     for (let i = 0; i < 2; i++) {
       const angle = rand(220 * Math.PI / 180, 320 * Math.PI / 180);
       const distance = bodyRadius * rand(.10, .25);
@@ -331,16 +344,18 @@ function inBounds(x, y) {
       );
     }
 
-    // Five to seven rounded connected fingers form the visible splat rim.
+    // Rounded outward fingers create the convex parts of the rim.
     const count = randInt(5, 7);
     const hero = randInt(Math.max(1, Math.floor(count / 3)), Math.min(count - 2, Math.floor(2 * count / 3)));
+    const angles = [];
     for (let i = 0; i < count; i++) {
       const angle = (208 + 124 * (i + .5) / count + rand(-7, 7)) * Math.PI / 180;
+      angles.push(angle);
       const ux = Math.cos(angle);
       const uy = Math.sin(angle);
       const rootDistance = bodyRadius * rand(.68, .78);
       const strong = i === hero;
-      const extra = radius * rand(strong ? .24 : .12, strong ? .38 : .29);
+      const extra = radius * rand(strong ? .26 : .12, strong ? .40 : .29);
       const startRadius = radius * rand(strong ? .14 : .11, strong ? .19 : .17);
       const endRadius = radius * rand(strong ? .11 : .07, strong ? .15 : .125);
       const x0 = cx + ux * rootDistance;
@@ -352,7 +367,24 @@ function inBounds(x, y) {
       addDisk(x1, y1, endRadius * rand(1.04, 1.16), target);
     }
 
-    // START must always be one gameplay-connected mass. No detached starter droplets.
+    // Bite into the rim between fingers to create genuine concave valleys.
+    // Keep the lower 17 rows intact so the touchable support remains broad.
+    for (let i = 0; i < angles.length - 1; i++) {
+      if (i === hero - 1 || i === hero) continue;
+      const mid = (angles[i] + angles[i + 1]) / 2 + rand(-.035, .035);
+      const ux = Math.cos(mid);
+      const uy = Math.sin(mid);
+      const distance = bodyRadius * rand(.96, 1.08);
+      carveDisk(
+        cx + ux * distance,
+        cy + uy * distance,
+        radius * rand(.10, .16),
+        target,
+        edge - 17
+      );
+    }
+
+    // Only the mass connected to the bottom edge is the gameplay START.
     const queue = [];
     const active = new Set();
     for (const k of target) {
