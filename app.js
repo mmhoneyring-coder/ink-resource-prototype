@@ -6,7 +6,7 @@
     rows: 450,
     rounds: 4,
     brushAreaPerTurn: 650,
-    starterPuddle: { radius: 30 },
+    starterPuddle: { radius: 48 },
     brushRadii: { thin: 3, wide: 6 },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
