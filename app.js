@@ -1,13 +1,15 @@
 (() => {
   'use strict';
 
+  const GRID_SCALE = 2;
+
   const CONFIG = {
-    cols: 208,
-    rows: 450,
+    cols: Math.round(450 * GRID_SCALE * 9 / 19.5),
+    rows: 450 * GRID_SCALE,
     rounds: 4,
-    brushAreaPerTurn: 650,
-    starterPuddle: { radius: 48 },
-    brushRadii: { thin: 3, wide: 6 },
+    brushAreaPerTurn: 650 * GRID_SCALE * GRID_SCALE,
+    starterPuddle: { radius: 56 * GRID_SCALE },
+    brushRadii: { thin: 3 * GRID_SCALE, wide: 6 * GRID_SCALE },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
     zoom: { min: 1, default: 1, max: 1.35, step: 0.10 },
@@ -15,20 +17,20 @@
       coreCount: [4, 6],
       dropletCount: [10, 15],
       speckCount: [8, 12],
-      coreRadius: [14, 20],
-      dropletRadius: [6, 11],
-      speckRadius: [3, 5],
-      spread: 115,
-      farSpread: 155,
-      aimDrift: [10, 28],
-      minIslandArea: 30,
+      coreRadius: [14 * GRID_SCALE, 20 * GRID_SCALE],
+      dropletRadius: [6 * GRID_SCALE, 11 * GRID_SCALE],
+      speckRadius: [3 * GRID_SCALE, 5 * GRID_SCALE],
+      spread: 115 * GRID_SCALE,
+      farSpread: 155 * GRID_SCALE,
+      aimDrift: [10 * GRID_SCALE, 28 * GRID_SCALE],
+      minIslandArea: 30 * GRID_SCALE * GRID_SCALE,
       radialDirections: [2, 3],
       radialJitter: 1.0,
       radialBias: { core: 0.40, droplet: 0.50, speck: 0.58 },
     },
     resources: {
-      minHomeDistance: 48,
-      minGap: 10,
+      minHomeDistance: 56 * GRID_SCALE,
+      minGap: 10 * GRID_SCALE,
       scoreStep: 10,
       counts: {
         upper: 6,
@@ -63,24 +65,24 @@
       },
       sizeDecks: {
         upper: [
-          { name: 'small', radius: 8 },
-          { name: 'small', radius: 8 },
-          { name: 'medium', radius: 12 },
-          { name: 'medium', radius: 12 },
-          { name: 'medium', radius: 12 },
-          { name: 'large', radius: 16 },
+          { name: 'small', radius: 8 * GRID_SCALE },
+          { name: 'small', radius: 8 * GRID_SCALE },
+          { name: 'medium', radius: 12 * GRID_SCALE },
+          { name: 'medium', radius: 12 * GRID_SCALE },
+          { name: 'medium', radius: 12 * GRID_SCALE },
+          { name: 'large', radius: 16 * GRID_SCALE },
         ],
         middle: [
-          { name: 'small', radius: 8 },
-          { name: 'small', radius: 8 },
-          { name: 'medium', radius: 12 },
-          { name: 'large', radius: 16 },
-          { name: 'large', radius: 16 },
+          { name: 'small', radius: 8 * GRID_SCALE },
+          { name: 'small', radius: 8 * GRID_SCALE },
+          { name: 'medium', radius: 12 * GRID_SCALE },
+          { name: 'large', radius: 16 * GRID_SCALE },
+          { name: 'large', radius: 16 * GRID_SCALE },
         ],
         lower: [
-          { name: 'small', radius: 8 },
-          { name: 'medium', radius: 12 },
-          { name: 'large', radius: 16 },
+          { name: 'small', radius: 8 * GRID_SCALE },
+          { name: 'medium', radius: 12 * GRID_SCALE },
+          { name: 'large', radius: 16 * GRID_SCALE },
         ],
       },
     },
@@ -380,7 +382,7 @@ function inBounds(x, y) {
         cy + uy * distance,
         radius * rand(.10, .16),
         target,
-        edge - 17
+        edge - 17 * GRID_SCALE
       );
     }
 
@@ -480,8 +482,8 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     for (let i = 0; i < core; i++) {
       const p = splashPointBiased(
         impact.x, impact.y,
-        i === 0 ? 4 : 12,
-        i === 0 ? 25 : CONFIG.splash.spread * .58,
+        i === 0 ? 4 * GRID_SCALE : 12 * GRID_SCALE,
+        i === 0 ? 25 * GRID_SCALE : CONFIG.splash.spread * .58,
         directions,
         CONFIG.splash.radialBias.core
       );
@@ -490,7 +492,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     }
     for (let i = 0; i < droplets; i++) {
       const p = splashPointBiased(
-        impact.x, impact.y, 18, CONFIG.splash.spread,
+        impact.x, impact.y, 18 * GRID_SCALE, CONFIG.splash.spread,
         directions, CONFIG.splash.radialBias.droplet
       );
       const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || directions[0] || rand(0, TAU);
@@ -498,7 +500,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     }
     for (let i = 0; i < specks; i++) {
       const p = splashPointBiased(
-        impact.x, impact.y, 27, CONFIG.splash.farSpread,
+        impact.x, impact.y, 27 * GRID_SCALE, CONFIG.splash.farSpread,
         directions, CONFIG.splash.radialBias.speck
       );
       addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius), splashInk);
@@ -520,7 +522,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     const radius = size.radius;
     const bandLo = band / 3 * CONFIG.rows;
     const bandHi = (band + 1) / 3 * CONFIG.rows;
-    const margin = Math.ceil(radius + 8);
+    const margin = Math.ceil(radius + 8 * GRID_SCALE);
     const anchor = starterAnchor();
     let x = CONFIG.cols / 2;
     let y = (bandLo + bandHi) / 2;
