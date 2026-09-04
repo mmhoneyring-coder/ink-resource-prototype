@@ -92,6 +92,34 @@
   const TAU = Math.PI * 2;
   const TAP_MOVE_PX = 5;
   const EPS = 0.01;
+
+  // One connected brush-splat silhouette. Detached starter droplets are intentionally omitted.
+  const STARTER_SHAPE = [
+    [1.000,0.867],[0.957,0.908],[0.947,0.900],[0.941,0.933],[0.920,0.925],
+    [0.888,0.958],[0.877,0.942],[0.882,0.908],[0.920,0.850],[0.930,0.800],
+    [0.904,0.825],[0.904,0.792],[0.824,0.933],[0.759,0.967],[0.754,0.950],
+    [0.775,0.900],[0.722,0.983],[0.701,0.967],[0.701,0.933],[0.674,0.975],
+    [0.642,0.917],[0.663,0.900],[0.615,0.900],[0.615,0.875],[0.594,0.875],
+    [0.599,0.842],[0.588,0.825],[0.631,0.808],[0.679,0.733],[0.642,0.775],
+    [0.626,0.758],[0.695,0.667],[0.636,0.717],[0.599,0.725],[0.583,0.692],
+    [0.631,0.592],[0.561,0.625],[0.551,0.575],[0.508,0.633],[0.492,0.583],
+    [0.497,0.550],[0.529,0.517],[0.529,0.458],[0.556,0.375],[0.647,0.308],
+    [0.679,0.233],[0.679,0.158],[0.668,0.175],[0.626,0.142],[0.626,0.050],
+    [0.642,0.000],[0.631,0.033],[0.583,0.025],[0.529,0.075],[0.513,0.125],
+    [0.513,0.175],[0.529,0.217],[0.513,0.300],[0.529,0.250],[0.561,0.217],
+    [0.572,0.350],[0.513,0.467],[0.503,0.458],[0.481,0.483],[0.465,0.533],
+    [0.471,0.433],[0.444,0.558],[0.428,0.583],[0.406,0.575],[0.412,0.542],
+    [0.396,0.508],[0.412,0.500],[0.396,0.483],[0.396,0.442],[0.385,0.517],
+    [0.364,0.542],[0.364,0.575],[0.385,0.608],[0.369,0.633],[0.337,0.608],
+    [0.353,0.492],[0.337,0.575],[0.326,0.592],[0.310,0.575],[0.305,0.508],
+    [0.337,0.317],[0.316,0.367],[0.316,0.458],[0.294,0.500],[0.289,0.550],
+    [0.257,0.608],[0.230,0.625],[0.198,0.550],[0.193,0.392],[0.187,0.683],
+    [0.150,0.733],[0.139,0.717],[0.139,0.650],[0.139,0.725],[0.118,0.842],
+    [0.102,0.842],[0.086,0.758],[0.064,0.858],[0.005,0.917],[0.011,0.992],
+    [0.000,1.000],[0.567,1.000],[0.572,0.967],[0.604,0.933],[0.658,0.958],
+    [0.674,0.983],[0.668,1.000],[0.930,1.000],[0.979,0.942],
+  ];
+
   const COLORS = {
     position: '#60777c',
     positionSoft: 'rgba(96,119,124,.30)',
@@ -187,15 +215,47 @@
   }
 
   function starterAnchor() {
-  const radius = CONFIG.starterPuddle.radius;
-  return {
-    x: Math.floor(CONFIG.cols / 2),
-    y: CONFIG.rows - 1 - Math.round(radius * .20),
-  };
-}
+    const radius = CONFIG.starterPuddle.radius;
+    return {
+      x: Math.floor(CONFIG.cols / 2),
+      y: CONFIG.rows - 1 - Math.round(radius * .20),
+    };
+  }
 
-function inBounds(x, y) {
+  function starterShapeBounds() {
+    const radius = CONFIG.starterPuddle.radius;
+    const width = radius * 1.93;
+    const height = radius * 1.23;
+    return {
+      left: starterAnchor().x - width / 2,
+      top: CONFIG.rows - height,
+      width,
+      height,
+    };
+  }
+
+  function starterShapePoints() {
+    const bounds = starterShapeBounds();
+    return STARTER_SHAPE.map(([u, v]) => ({
+      x: bounds.left + u * bounds.width,
+      y: bounds.top + v * bounds.height,
+    }));
+  }
+
+  function inBounds(x, y) {
     return x >= 0 && x < CONFIG.cols && y >= 0 && y < CONFIG.rows;
+  }
+
+  function pointInPolygon(x, y, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const a = polygon[i];
+      const b = polygon[j];
+      const crosses = ((a.y > y) !== (b.y > y)) &&
+        (x < (b.x - a.x) * (y - a.y) / ((b.y - a.y) || EPS) + a.x);
+      if (crosses) inside = !inside;
+    }
+    return inside;
   }
 
   function addDisk(cx, cy, radius, target = ink) {
@@ -225,94 +285,51 @@ function inBounds(x, y) {
     }
   }
 
-  function addConnectedTaperedStroke(x0, y0, x1, y1, startRadius, endRadius, target) {
-    const distance = Math.hypot(x1 - x0, y1 - y0);
-    const steps = Math.max(2, Math.ceil(distance / 1.15));
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const radius = startRadius + (endRadius - startRadius) * t;
-      const jitter = Math.sin(t * Math.PI) * .35;
-      addDisk(
-        x0 + (x1 - x0) * t + rand(-jitter, jitter),
-        y0 + (y1 - y0) * t + rand(-jitter, jitter),
-        Math.max(.75, radius),
-        target
-      );
-    }
-  }
-
   function createStarterPuddle() {
+    const polygon = starterShapePoints();
+    const bounds = starterShapeBounds();
     const target = new Set();
-    const anchor = starterAnchor();
-    const radius = CONFIG.starterPuddle.radius;
-    const edge = CONFIG.rows - 1;
-    const cx = anchor.x;
-
-    // The starter is one connected ink mass continuing below the board.
-    // Keep it dense at the bottom, then give only the connected upper rim brush-like lift.
-    addDisk(cx, edge + radius * .48, radius * .98, target);
-    addDisk(cx - radius * .36, edge + radius * .40, radius * .60, target);
-    addDisk(cx + radius * .34, edge + radius * .36, radius * .62, target);
-    addDisk(cx - radius * .10, edge + radius * .18, radius * .48, target);
-    addDisk(cx + radius * .13, edge + radius * .16, radius * .46, target);
-
-    const shoulders = [
-      [-.48, .02, .28],
-      [-.31, -.03, .31],
-      [-.16, -.08, .34],
-      [ .02, -.11, .35],
-      [ .20, -.07, .33],
-      [ .37,  .00, .29],
-      [ .50,  .07, .22],
+    const samples = [
+      [.50,.50], [.18,.18], [.82,.18], [.18,.82], [.82,.82],
+      [.50,.18], [.50,.82], [.18,.50], [.82,.50],
     ];
-    for (const [dx, dy, rr] of shoulders) {
-      addDisk(
-        cx + dx * radius + rand(-1.0, 1.0),
-        edge + dy * radius + rand(-.8, .8),
-        rr * radius * rand(.94, 1.07),
-        target
-      );
+
+    const minX = Math.max(0, Math.floor(bounds.left) - 1);
+    const maxX = Math.min(CONFIG.cols - 1, Math.ceil(bounds.left + bounds.width) + 1);
+    const minY = Math.max(0, Math.floor(bounds.top) - 1);
+
+    for (let y = minY; y < CONFIG.rows; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (samples.some(([sx, sy]) => pointInPolygon(x + sx, y + sy, polygon))) {
+          target.add(key(x, y));
+        }
+      }
     }
 
-    // Connected spikes create the brush/sumi energy seen in the reference.
-    // No detached starter droplets are generated here.
-    const spikes = [
-      [-.36, .42, -.10, 1.5],
-      [-.25, .58, -.16, 1.8],
-      [-.14, .78, -.08, 2.2],
-      [-.04, 1.00,  .04, 2.7],
-      [ .08, .72,  .10, 2.2],
-      [ .20, .56,  .14, 1.9],
-      [ .32, .40,  .12, 1.6],
-    ];
-    for (const [rootX, length, lean, rootSize] of spikes) {
-      const x0 = cx + rootX * radius + rand(-1.0, 1.0);
-      const y0 = edge - radius * .16 + rand(-.8, .8);
-      const x1 = x0 + lean * radius + rand(-1.2, 1.2);
-      const y1 = y0 - length * radius * rand(.88, 1.06);
-      addConnectedTaperedStroke(
-        x0, y0, x1, y1,
-        rootSize * rand(.92, 1.08),
-        rand(.75, 1.05),
-        target
-      );
+    // Only the component actually connected to the bottom edge is a gameplay anchor.
+    const queue = [];
+    const active = new Set();
+    for (const k of target) {
+      const p = parseKey(k);
+      if (p.y < CONFIG.rows - 2) continue;
+      active.add(k);
+      queue.push(k);
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const p = parseKey(queue[i]);
+      for (const [dx, dy] of neighbors) {
+        const nk = key(p.x + dx, p.y + dy);
+        if (active.has(nk) || !target.has(nk)) continue;
+        active.add(nk);
+        queue.push(nk);
+      }
     }
 
-    // Short connected teeth keep the rim irregular without creating independent splatter.
-    const teeth = randInt(5, 8);
-    for (let i = 0; i < teeth; i++) {
-      const x0 = cx + rand(-radius * .46, radius * .46);
-      const y0 = edge - rand(radius * .10, radius * .20);
-      const x1 = x0 + rand(-3.2, 3.2);
-      const y1 = y0 - rand(4.0, 9.0);
-      addConnectedTaperedStroke(x0, y0, x1, y1, rand(1.4, 2.2), rand(.7, .95), target);
-    }
-
-    starterInk = target;
+    starterInk = active.size ? active : target;
     for (const k of starterInk) ink.add(k);
   }
 
-function splashPoint(cx, cy, minDistance, maxDistance) {
+  function splashPoint(cx, cy, minDistance, maxDistance) {
     const angle = rand(0, TAU);
     const distance = rand(minDistance, maxDistance);
     return { x: cx + Math.cos(angle) * distance, y: cy + Math.sin(angle) * distance };
@@ -849,6 +866,23 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     ctx.setLineDash([]);
   }
 
+  function renderStarterPuddle(m) {
+    const polygon = starterShapePoints();
+    if (!polygon.length) return;
+    ctx.save();
+    ctx.fillStyle = '#1f2927';
+    ctx.beginPath();
+    polygon.forEach((p, i) => {
+      const x = p.x * m.sx;
+      const y = p.y * m.sy;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   function renderCoinHalo(resource, m) {
     const x = (resource.x + .5) * m.sx;
     const y = (resource.y + .5) * m.sy;
@@ -1007,8 +1041,10 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     ctx.scale(camera.zoom, camera.zoom);
 
     renderBands(m);
+    renderStarterPuddle(m);
 
     for (const k of ink) {
+      if (starterInk.has(k)) continue;
       const p = parseKey(k);
       ctx.fillStyle = connected.has(k) ? '#1f2927' : '#525755';
       ctx.fillRect(
