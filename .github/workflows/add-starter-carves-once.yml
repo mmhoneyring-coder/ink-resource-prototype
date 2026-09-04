@@ -1,0 +1,28 @@
+name: Add starter carves once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-starter-carves-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate 500 starters then apply carve logic
+        run: python .github/scripts/add_starter_carves.py
+      - name: Validate JavaScript
+        run: |
+          node --check app.js
+          git diff --check
+      - name: Commit starter carve implementation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.js
+          git commit -m 'Add concave carving to random starter splats'
+          git push
