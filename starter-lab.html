@@ -3,36 +3,65 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>START Wrap Lab</title>
-  <link rel="stylesheet" href="starter-wrap-lab.css">
+  <title>START Shape Lab</title>
+  <link rel="stylesheet" href="starter-single-lab.css">
 </head>
 <body>
   <main class="lab">
-    <header class="lab-head">
+    <section class="card head">
       <div>
-        <h1>START Wrap Lab</h1>
-        <p class="lead">過去の平面型輪郭を円へ巻いて比較します。良い枠は固定し、ダメな枠だけ別の過去形状へ交換できます。</p>
+        <h1>START Shape Lab</h1>
+        <p class="lead">参考画像そのものをなぞるのではなく、同じ「形の作られ方」に見える生成方式と条件帯を探します。候補は1枚ずつ、採用 / 不採用で評価します。</p>
       </div>
       <div class="toolbar">
+        <button id="newBatchBtn" type="button">新しい候補セット</button>
+        <button id="resetBtn" type="button">すべてリセット</button>
+        <button id="copyAcceptedBtn" type="button">採用JSONをコピー</button>
         <label class="toggle"><input id="showCore" type="checkbox"> 内部円を表示</label>
-        <button id="replaceUnlockedBtn" type="button">固定以外を交換</button>
-        <button id="resetBtn" type="button">最初から</button>
       </div>
-    </header>
-
-    <section class="status-bar">
-      <span id="statusText"></span>
-      <button id="copyBtn" type="button">3枠JSONをコピー</button>
     </section>
 
-    <section id="candidates" class="candidates" aria-label="形状候補"></section>
+    <section class="card status">
+      <div class="stats">
+        <span class="pill" id="batchPill">セット 1</span>
+        <span class="pill" id="countPill">候補 1 / 36</span>
+        <span class="pill" id="remainPill">残り 35</span>
+        <span class="pill" id="acceptedPill">採用 0</span>
+        <span class="pill" id="rejectedPill">不採用 0</span>
+      </div>
+      <div class="muted" id="currentMeta">候補生成中…</div>
+    </section>
 
-    <section class="history">
-      <h2>交換履歴</h2>
-      <div id="historyList"></div>
+    <section id="viewer" class="card">
+      <div class="viewer-head">
+        <div><h2 id="candidateTitle">候補</h2><div class="muted" id="candidateId">--</div></div>
+        <span class="pill" id="familyPill">方式 --</span>
+      </div>
+      <div class="canvases">
+        <div class="canvasbox"><canvas id="fullCanvas" width="760" height="540"></canvas></div>
+        <div class="canvasbox"><canvas id="startCanvas" width="760" height="190"></canvas></div>
+      </div>
+      <div class="controls">
+        <div class="rangebox">
+          <div class="rangerow"><strong>巻き具合</strong><span id="wrapValue">62%</span></div>
+          <input id="wrapRange" type="range" min="0" max="100" step="1" value="62">
+          <div class="small">補助調整です。候補の生成条件自体は保持されます。</div>
+        </div>
+        <div class="actions">
+          <button id="rejectBtn" class="secondary" type="button">不採用</button>
+          <button id="acceptBtn" class="primary" type="button">採用</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="doneView" class="card done" hidden>この候補セットは確認済みです。「新しい候補セット」で続けられます。</section>
+
+    <section class="lists">
+      <section class="card"><h3>採用済み</h3><div class="list" id="acceptedList">まだありません。</div></section>
+      <section class="card"><h3>方式別の採用傾向</h3><div class="list" id="analysisList">評価データがまだありません。</div></section>
     </section>
   </main>
   <script src="starter-wrap-profiles.js"></script>
-  <script src="starter-wrap-lab.js"></script>
+  <script src="starter-single-lab.js"></script>
 </body>
 </html>
