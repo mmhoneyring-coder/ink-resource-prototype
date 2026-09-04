@@ -8,7 +8,7 @@
     rows: 450 * GRID_SCALE,
     rounds: 4,
     brushAreaPerTurn: 650 * GRID_SCALE * GRID_SCALE,
-    starterPuddle: { radius: 56 * GRID_SCALE },
+    starterPuddle: { radius: 84 * GRID_SCALE },
     brushRadii: { thin: 3 * GRID_SCALE, wide: 6 * GRID_SCALE },
     scoreRevealCoverage: 0.30,
     acquireCoverage: 0.70,
@@ -29,7 +29,7 @@
       radialBias: { core: 0.40, droplet: 0.50, speck: 0.58 },
     },
     resources: {
-      minHomeDistance: 56 * GRID_SCALE,
+      minHomeDistance: 84 * GRID_SCALE,
       minGap: 10 * GRID_SCALE,
       scoreStep: 10,
       counts: {
@@ -329,7 +329,7 @@ function inBounds(x, y) {
     const edge = CONFIG.rows - 1;
     const bodyRadius = radius * .83;
     const cx = starterAnchor().x + rand(-1.4, 1.4);
-    const cy = edge + bodyRadius * .38;
+    const cy = edge + bodyRadius * .68;
 
     // Main mass: size remains the same as the current starter.
     addDisk(cx, cy, bodyRadius, target);
