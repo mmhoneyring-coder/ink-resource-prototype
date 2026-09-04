@@ -184,6 +184,8 @@
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('boardWrap');
+  const appShell = document.querySelector('.app-shell');
+  const actionsEl = document.querySelector('.actions');
   const scoreBoardEl = document.getElementById('scoreBoard');
   const scoreEl = document.getElementById('score');
   const roundEl = document.getElementById('roundCount');
@@ -229,6 +231,8 @@
   let feedbackTimer = null;
   let splashShapes = [];
   let splashVisualInk = new Set();
+  let actionDrag = null;
+  let actionsMoved = false;
 
   const pointers = new Map();
   const camera = { zoom: CONFIG.zoom.default, tx: 0, ty: 0 };
@@ -961,6 +965,34 @@
     render();
   }
 
+  function actionToolbarBounds() {
+    const shellRect = appShell.getBoundingClientRect();
+    const boardRect = boardWrap.getBoundingClientRect();
+    const toolRect = actionsEl.getBoundingClientRect();
+    const margin = 4;
+    const minLeft = boardRect.left - shellRect.left + margin;
+    const minTop = boardRect.top - shellRect.top + margin;
+    const maxLeft = Math.max(minLeft, boardRect.right - shellRect.left - toolRect.width - margin);
+    const maxTop = Math.max(minTop, boardRect.bottom - shellRect.top - toolRect.height - margin);
+    return { minLeft, minTop, maxLeft, maxTop };
+  }
+
+  function positionActionToolbar(left, top) {
+    const bounds = actionToolbarBounds();
+    actionsEl.style.left = `${clamp(left, bounds.minLeft, bounds.maxLeft)}px`;
+    actionsEl.style.top = `${clamp(top, bounds.minTop, bounds.maxTop)}px`;
+    actionsEl.style.right = 'auto';
+    actionsEl.style.bottom = 'auto';
+    actionsMoved = true;
+  }
+
+  function keepActionToolbarInBounds() {
+    if (!actionsMoved) return;
+    const shellRect = appShell.getBoundingClientRect();
+    const rect = actionsEl.getBoundingClientRect();
+    positionActionToolbar(rect.left - shellRect.left, rect.top - shellRect.top);
+  }
+
   function resizeCanvas() {
     const rect = boardWrap.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -1376,6 +1408,58 @@
     };
   }
 
+  actionsEl.addEventListener('pointerdown', event => {
+    // Pen buttons keep their normal tap behavior. Everything else on the toolbar is a drag handle.
+    if (event.target.closest('.action')) return;
+    if (gameOver || phase !== 'brush') return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    const rect = actionsEl.getBoundingClientRect();
+    const shellRect = appShell.getBoundingClientRect();
+    actionDrag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+
+    // Convert the initial bottom-anchored position to explicit left/top without a visual jump.
+    actionsEl.style.left = `${rect.left - shellRect.left}px`;
+    actionsEl.style.top = `${rect.top - shellRect.top}px`;
+    actionsEl.style.right = 'auto';
+    actionsEl.style.bottom = 'auto';
+    actionsEl.classList.add('dragging');
+    actionsEl.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+
+  actionsEl.addEventListener('pointermove', event => {
+    if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
+    const shellRect = appShell.getBoundingClientRect();
+    positionActionToolbar(
+      event.clientX - shellRect.left - actionDrag.offsetX,
+      event.clientY - shellRect.top - actionDrag.offsetY
+    );
+    event.preventDefault();
+  });
+
+  function endActionToolbarDrag(event) {
+    if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
+    actionDrag = null;
+    actionsEl.classList.remove('dragging');
+    try {
+      if (actionsEl.hasPointerCapture?.(event.pointerId)) actionsEl.releasePointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+
+  actionsEl.addEventListener('pointerup', endActionToolbarDrag);
+  actionsEl.addEventListener('pointercancel', endActionToolbarDrag);
+  actionsEl.addEventListener('lostpointercapture', event => {
+    if (actionDrag && actionDrag.pointerId === event.pointerId) {
+      actionDrag = null;
+      actionsEl.classList.remove('dragging');
+    }
+  });
+
   canvas.addEventListener('pointerdown', event => {
     if (gameOver || !distributionPanel.hidden) return;
     canvas.setPointerCapture(event.pointerId);
@@ -1478,7 +1562,10 @@
   distributionClose.addEventListener('click', () => {
     distributionPanel.hidden = true;
   });
-  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    if (actionsMoved) requestAnimationFrame(keepActionToolbarInBounds);
+  });
 
   requestAnimationFrame(() => {
     resizeCanvas();
