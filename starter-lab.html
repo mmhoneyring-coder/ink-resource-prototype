@@ -3,93 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>START Shape Lab</title>
-  <link rel="stylesheet" href="starter-lab.css">
+  <title>START Wrap Lab</title>
+  <link rel="stylesheet" href="starter-wrap-lab.css">
 </head>
 <body>
   <main class="lab">
     <header class="lab-head">
       <div>
-        <h1>START Shape Lab</h1>
-        <p class="lead">島全体を生成し、上部30%をSTART候補として比較します。採用した形はそのまま親として保存され、次世代は親＋2変異です。</p>
+        <h1>START Wrap Lab</h1>
+        <p class="lead">過去の平面型輪郭を円へ巻いて比較します。良い枠は固定し、ダメな枠だけ別の過去形状へ交換できます。</p>
       </div>
       <div class="toolbar">
-        <label class="toggle"><input id="showCore" type="checkbox"> 内部核を表示</label>
-        <button id="undoBtn" type="button">1世代戻す</button>
-        <button id="resetBtn" type="button">新しい初代3個</button>
+        <label class="toggle"><input id="showCore" type="checkbox"> 内部円を表示</label>
+        <button id="replaceUnlockedBtn" type="button">固定以外を交換</button>
+        <button id="resetBtn" type="button">最初から</button>
       </div>
     </header>
 
-    <section class="parent-bar" aria-label="勝ち上がり状態">
-      <span id="parentStatus"></span>
-      <button id="copyBtn" type="button">親JSONをコピー</button>
+    <section class="status-bar">
+      <span id="statusText"></span>
+      <button id="copyBtn" type="button">3枠JSONをコピー</button>
     </section>
 
-    <section class="candidates" aria-label="形状候補">
-      <article class="card" data-index="0">
-        <div class="card-head">
-          <h2 class="card-title">A</h2>
-          <span class="meta"></span>
-        </div>
-        <div class="full-wrap">
-          <canvas class="full-canvas" width="520" height="520"></canvas>
-          <span class="preview-label">島全体 / 線より上が30%</span>
-        </div>
-        <div class="preview-wrap">
-          <canvas class="preview-canvas" width="520" height="170"></canvas>
-          <span class="preview-label">START表示</span>
-        </div>
-        <div class="card-foot">
-          <div class="summary"></div>
-          <button class="adopt primary" type="button">この形を採用</button>
-        </div>
-      </article>
-
-      <article class="card" data-index="1">
-        <div class="card-head">
-          <h2 class="card-title">B</h2>
-          <span class="meta"></span>
-        </div>
-        <div class="full-wrap">
-          <canvas class="full-canvas" width="520" height="520"></canvas>
-          <span class="preview-label">島全体 / 線より上が30%</span>
-        </div>
-        <div class="preview-wrap">
-          <canvas class="preview-canvas" width="520" height="170"></canvas>
-          <span class="preview-label">START表示</span>
-        </div>
-        <div class="card-foot">
-          <div class="summary"></div>
-          <button class="adopt primary" type="button">この形を採用</button>
-        </div>
-      </article>
-
-      <article class="card" data-index="2">
-        <div class="card-head">
-          <h2 class="card-title">C</h2>
-          <span class="meta"></span>
-        </div>
-        <div class="full-wrap">
-          <canvas class="full-canvas" width="520" height="520"></canvas>
-          <span class="preview-label">島全体 / 線より上が30%</span>
-        </div>
-        <div class="preview-wrap">
-          <canvas class="preview-canvas" width="520" height="170"></canvas>
-          <span class="preview-label">START表示</span>
-        </div>
-        <div class="card-foot">
-          <div class="summary"></div>
-          <button class="adopt primary" type="button">この形を採用</button>
-        </div>
-      </article>
-    </section>
+    <section id="candidates" class="candidates" aria-label="形状候補"></section>
 
     <section class="history">
-      <h2>採用履歴</h2>
+      <h2>交換履歴</h2>
       <div id="historyList"></div>
     </section>
   </main>
-
-  <script src="starter-lab.js"></script>
+  <script src="starter-wrap-profiles.js"></script>
+  <script src="starter-wrap-lab.js"></script>
 </body>
 </html>
