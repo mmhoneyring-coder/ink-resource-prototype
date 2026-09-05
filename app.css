@@ -469,7 +469,7 @@ button { font: inherit; }
   left: 6px;
   right: auto;
   width: calc(100% - 56px);
-  bottom: max(6px, env(safe-area-inset-bottom));
+  bottom: calc(23% + max(6px, env(safe-area-inset-bottom)));
   z-index: 7;
   min-height: 44px;
   padding: 4px;
