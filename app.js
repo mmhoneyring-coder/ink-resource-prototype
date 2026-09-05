@@ -528,16 +528,14 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
         directions,
         CONFIG.splash.radialBias.core
       );
-      const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || directions[0] || rand(0, TAU);
-      addDirectionalInkBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), flow, 'core', splashInk);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
     }
     for (let i = 0; i < droplets; i++) {
       const p = splashPointBiased(
         impact.x, impact.y, 18 * GRID_SCALE, CONFIG.splash.spread,
         directions, CONFIG.splash.radialBias.droplet
       );
-      const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || directions[0] || rand(0, TAU);
-      addDirectionalInkBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), flow, 'droplet', splashInk);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
     }
     for (let i = 0; i < specks; i++) {
       const p = splashPointBiased(
