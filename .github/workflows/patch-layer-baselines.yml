@@ -1,0 +1,37 @@
+name: Patch layer baselines
+'on':
+  push:
+    paths:
+      - '.github/workflows/patch-layer-baselines.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply layer baseline patch
+        run: python .github/scripts/patch_layer_baselines.py
+      - name: Validate
+        run: |
+          node --check app.js
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+          js=Path('app.js').read_text(encoding='utf-8')
+          css=Path('app.css').read_text(encoding='utf-8')
+          assert 'const BAND_BASELINES = [225, 130, 65];' in js
+          assert 'score-board-baseline' in js
+          assert '${BAND_BASELINES[band]}' in js
+          assert '.score-board-baseline {' in css
+          assert 'font-size: 8.5px;' in css
+          assert 'grid-template-rows: auto minmax(0, 1fr);' in css
+          PY
+          git diff -- app.js app.css
+      - name: Commit change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app.js app.css
+          git commit -m "Add layer baseline scores"
+          git push
