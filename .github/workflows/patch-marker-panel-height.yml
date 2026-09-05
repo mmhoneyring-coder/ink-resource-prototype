@@ -1,0 +1,30 @@
+name: Patch marker panel height
+'on':
+  push:
+    paths:
+      - '.github/workflows/patch-marker-panel-height.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply marker panel height patch
+        run: python .github/scripts/patch_marker_panel_height.py
+      - name: Validate
+        run: |
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+          css=Path('app.css').read_text(encoding='utf-8')
+          assert 'bottom: calc(23% + max(6px, env(safe-area-inset-bottom)));' in css
+          PY
+          git diff -- app.css
+      - name: Commit change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app.css
+          git commit -m "Raise marker control panel"
+          git push
