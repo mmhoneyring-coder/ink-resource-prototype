@@ -230,15 +230,25 @@ function inBounds(x, y) {
   }
 
   function addBlob(cx, cy, baseRadius, lobes = [2, 5], target = ink) {
-    addDisk(cx, cy, baseRadius * rand(.72, .98), target);
+    // Keep the classic overlapping-cell construction, but let the lobes define
+    // the silhouette instead of letting one large central disk dominate it.
+    addDisk(cx, cy, baseRadius * rand(.58, .76), target);
     const count = randInt(...lobes);
+    const hero = randInt(0, Math.max(0, count - 1));
     for (let i = 0; i < count; i++) {
       const angle = rand(0, TAU);
-      const dist = rand(baseRadius * .25, baseRadius * .85);
+      const outer = i === hero;
+      const dist = outer
+        ? rand(baseRadius * .70, baseRadius * .96)
+        : rand(baseRadius * .46, baseRadius * .90);
+      const lobeRadius = baseRadius * rand(
+        outer ? .42 : .34,
+        outer ? .62 : .58
+      );
       addDisk(
         cx + Math.cos(angle) * dist,
         cy + Math.sin(angle) * dist,
-        baseRadius * rand(.32, .68),
+        lobeRadius,
         target
       );
     }
@@ -542,7 +552,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
         impact.x, impact.y, 27 * GRID_SCALE, CONFIG.splash.farSpread,
         directions, CONFIG.splash.radialBias.speck
       );
-      addDisk(p.x, p.y, rand(...CONFIG.splash.speckRadius), splashInk);
+      addBlob(p.x, p.y, rand(...CONFIG.splash.speckRadius), [1, 2], splashInk);
     }
 
     pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
