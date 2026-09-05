@@ -94,6 +94,7 @@
 
   const BAND_NAMES = ['upper', 'middle', 'lower'];
   const BAND_LABELS = ['上層', '中層', '下層'];
+  const BAND_BASELINES = [225, 130, 65];
   const neighbors = [[1,0],[-1,0],[0,1],[0,-1]];
   const TAU = Math.PI * 2;
   const TAP_MOVE_PX = 5;
@@ -920,6 +921,10 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
         .map(scoreToken)
         .join('');
       return `<div class="score-board-row">
+        <div class="score-board-baseline" aria-label="${BAND_LABELS[band]}の基準点 ${BAND_BASELINES[band]}点">
+          <span>基準</span>
+          <strong>${BAND_BASELINES[band]}</strong>
+        </div>
         <span class="score-board-label">${BAND_LABELS[band]}</span>
         <div class="score-board-values">${items}</div>
       </div>`;

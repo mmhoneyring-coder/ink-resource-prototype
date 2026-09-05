@@ -365,9 +365,33 @@ button { font: inherit; }
 .score-board-row {
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
-  padding: 2px 2px;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 0 2px 2px;
   border-bottom: 1px dashed rgba(78,68,51,.20);
+}
+.score-board-baseline {
+  min-height: 24px;
+  margin: 0 -2px 1px;
+  padding: 3px 0 4px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  border-bottom: 1px solid rgba(78,68,51,.18);
+  background: rgba(91,82,68,.07);
+  color: #766f64;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.score-board-baseline span {
+  font-size: 6px;
+  font-weight: 750;
+  letter-spacing: .08em;
+}
+.score-board-baseline strong {
+  color: #625c52;
+  font-size: 8.5px;
+  font-weight: 850;
 }
 .score-board-row:nth-child(1) { background: #eee6d5; }
 .score-board-row:nth-child(2) { background: #f5eddc; }
