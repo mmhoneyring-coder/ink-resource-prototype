@@ -14,15 +14,16 @@
     acquireCoverage: 0.70,
     zoom: { min: 1, default: 1, max: 1.35, step: 0.10 },
     splash: {
-      coreCount: [4, 6],
-      dropletCount: [10, 15],
-      speckCount: [8, 12],
+      // Back-to-basics splash: a few nearby islands, no wide speck field.
+      coreCount: [3, 5],
+      dropletCount: [1, 5],
+      speckCount: [0, 0],
       coreRadius: [14 * GRID_SCALE, 20 * GRID_SCALE],
-      dropletRadius: [6 * GRID_SCALE, 11 * GRID_SCALE],
+      dropletRadius: [5 * GRID_SCALE, 10 * GRID_SCALE],
       speckRadius: [3 * GRID_SCALE, 5 * GRID_SCALE],
-      spread: 115 * GRID_SCALE,
-      farSpread: 155 * GRID_SCALE,
-      aimDrift: [10 * GRID_SCALE, 28 * GRID_SCALE],
+      spread: 60 * GRID_SCALE,
+      farSpread: 84 * GRID_SCALE,
+      aimDrift: [0, 0],
       minIslandArea: 30 * GRID_SCALE * GRID_SCALE,
       radialDirections: [2, 3],
       radialJitter: 1.0,
@@ -230,8 +231,7 @@ function inBounds(x, y) {
   }
 
   function addBlob(cx, cy, baseRadius, lobes = [2, 5], target = ink) {
-    // Keep the classic overlapping-cell construction, but let the lobes define
-    // the silhouette instead of letting one large central disk dominate it.
+    // Legacy overlapping-disk blob kept for non-splash experiments.
     addDisk(cx, cy, baseRadius * rand(.58, .76), target);
     const count = randInt(...lobes);
     const hero = randInt(0, Math.max(0, count - 1));
@@ -251,6 +251,72 @@ function inBounds(x, y) {
         lobeRadius,
         target
       );
+    }
+  }
+
+  function splashAngleDiff(a, b) {
+    return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  }
+
+  function splashPointInPolygon(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const xi = points[i].x;
+      const yi = points[i].y;
+      const xj = points[j].x;
+      const yj = points[j].y;
+      const crosses = (yi > y) !== (yj > y);
+      if (!crosses) continue;
+      const edgeX = (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi;
+      if (x < edgeX) inside = !inside;
+    }
+    return inside;
+  }
+
+  function addShapeFirstSplashIsland(cx, cy, baseRadius, flowDirection, kind, target = ink) {
+    // Build one smooth irregular outline first, then rasterize that outline to
+    // the same cell set used by rendering, connectivity and resource checks.
+    const core = kind === 'core';
+    const pointCount = core ? 34 : 28;
+    const freqA = randInt(2, 3);
+    let freqB = randInt(3, 5);
+    if (freqB === freqA) freqB += 1;
+    const phaseA = rand(0, TAU);
+    const phaseB = rand(0, TAU);
+    const ampA = rand(core ? .11 : .13, core ? .18 : .21);
+    const ampB = rand(core ? .035 : .045, core ? .080 : .095);
+    const forwardAmp = rand(core ? .035 : .025, core ? .085 : .070);
+    const stretch = rand(.94, 1.06);
+    const rotation = rand(-.20, .20);
+    const cr = Math.cos(rotation);
+    const sr = Math.sin(rotation);
+    const points = [];
+
+    for (let i = 0; i < pointCount; i++) {
+      const angle = i / pointCount * TAU;
+      const worldAngle = angle + rotation;
+      const forward = Math.max(0, Math.cos(splashAngleDiff(worldAngle, flowDirection)));
+      const radial = 1
+        + ampA * Math.sin(freqA * angle + phaseA)
+        + ampB * Math.sin(freqB * angle + phaseB)
+        + forwardAmp * forward * forward;
+      const px = Math.cos(angle) * baseRadius * radial * stretch;
+      const py = Math.sin(angle) * baseRadius * radial / stretch;
+      points.push({
+        x: cx + px * cr - py * sr,
+        y: cy + px * sr + py * cr,
+      });
+    }
+
+    const minX = Math.max(0, Math.floor(Math.min(...points.map(p => p.x))) - 1);
+    const maxX = Math.min(CONFIG.cols - 1, Math.ceil(Math.max(...points.map(p => p.x))) + 1);
+    const minY = Math.max(0, Math.floor(Math.min(...points.map(p => p.y))) - 1);
+    const maxY = Math.min(CONFIG.rows - 1, Math.ceil(Math.max(...points.map(p => p.y))) + 1);
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (splashPointInPolygon(x + .5, y + .5, points)) target.add(key(x, y));
+      }
     }
   }
 
@@ -526,33 +592,45 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     const splashInk = new Set();
     const core = randInt(...CONFIG.splash.coreCount);
     const droplets = randInt(...CONFIG.splash.dropletCount);
-    const specks = randInt(...CONFIG.splash.speckCount);
-    const impact = splashPoint(cx, cy, ...CONFIG.splash.aimDrift);
-    const directions = createSplashDirections();
+    const impact = { x: cx, y: cy };
 
+    // Original-scale composition: a few medium islands near the tap and only
+    // a handful of smaller islands farther out. Placement is deliberately
+    // simple again so shape can be judged independently from spread behavior.
     for (let i = 0; i < core; i++) {
-      const p = splashPointBiased(
-        impact.x, impact.y,
-        i === 0 ? 4 * GRID_SCALE : 12 * GRID_SCALE,
-        i === 0 ? 25 * GRID_SCALE : CONFIG.splash.spread * .58,
-        directions,
-        CONFIG.splash.radialBias.core
+      const p = splashPoint(
+        impact.x,
+        impact.y,
+        i === 0 ? 0 : 10 * GRID_SCALE,
+        i === 0 ? 12 * GRID_SCALE : CONFIG.splash.spread
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.coreRadius), [2, 5], splashInk);
+      const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || rand(0, TAU);
+      addShapeFirstSplashIsland(
+        p.x,
+        p.y,
+        rand(...CONFIG.splash.coreRadius),
+        flow,
+        'core',
+        splashInk
+      );
     }
+
     for (let i = 0; i < droplets; i++) {
-      const p = splashPointBiased(
-        impact.x, impact.y, 18 * GRID_SCALE, CONFIG.splash.spread,
-        directions, CONFIG.splash.radialBias.droplet
+      const p = splashPoint(
+        impact.x,
+        impact.y,
+        26 * GRID_SCALE,
+        CONFIG.splash.farSpread
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.dropletRadius), [1, 3], splashInk);
-    }
-    for (let i = 0; i < specks; i++) {
-      const p = splashPointBiased(
-        impact.x, impact.y, 27 * GRID_SCALE, CONFIG.splash.farSpread,
-        directions, CONFIG.splash.radialBias.speck
+      const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || rand(0, TAU);
+      addShapeFirstSplashIsland(
+        p.x,
+        p.y,
+        rand(...CONFIG.splash.dropletRadius),
+        flow,
+        'droplet',
+        splashInk
       );
-      addBlob(p.x, p.y, rand(...CONFIG.splash.speckRadius), [1, 2], splashInk);
     }
 
     pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
