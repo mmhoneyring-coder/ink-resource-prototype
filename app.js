@@ -140,6 +140,11 @@
   const finalOwned = document.getElementById('finalOwned');
   const retryBtn = document.getElementById('retryBtn');
   const nextBtn = document.getElementById('nextBtn');
+  const startScreen = document.getElementById('startScreen');
+  const startBtn = document.getElementById('startBtn');
+  const highScoreList = document.getElementById('highScoreList');
+  const HIGH_SCORE_KEY = 'inkResource.bestRuns.v1';
+  const HIGH_SCORE_LIMIT = 3;
 
   let seed = randomSeed();
   let rng = mulberry32(seed);
@@ -166,6 +171,64 @@
 
   function randomSeed() {
     return (Math.random() * 0xffffffff) >>> 0;
+  }
+
+  function readHighScores() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(HIGH_SCORE_KEY) || '[]');
+      return Array.isArray(parsed)
+        ? parsed.filter(entry => entry && Number.isFinite(Number(entry.score))).slice(0, HIGH_SCORE_LIMIT)
+        : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeHighScores(list) {
+    try {
+      localStorage.setItem(HIGH_SCORE_KEY, JSON.stringify(list.slice(0, HIGH_SCORE_LIMIT)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function formatHighScoreDate(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  function renderHighScores() {
+    if (!highScoreList) return;
+    const list = readHighScores();
+    if (!list.length) {
+      highScoreList.innerHTML = '<li class="high-score-empty">まだ記録なし</li>';
+      return;
+    }
+    highScoreList.innerHTML = list.map((entry, index) => `
+      <li class="high-score-row">
+        <span class="high-score-rank">${index + 1}</span>
+        <strong class="high-score-score">${Number(entry.score).toLocaleString('ja-JP')}</strong>
+        <span class="high-score-meta">取得 ${Number(entry.owned) || 0}個<br>${formatHighScoreDate(entry.date)}</span>
+      </li>`).join('');
+  }
+
+  function recordHighScore() {
+    const record = {
+      score: Number(score) || 0,
+      owned: resources.filter(resource => resource.owned).length,
+      date: new Date().toISOString(),
+    };
+    const list = readHighScores();
+    list.push(record);
+    list.sort((a, b) =>
+      Number(b.score) - Number(a.score) ||
+      Number(b.owned || 0) - Number(a.owned || 0) ||
+      String(a.date || '').localeCompare(String(b.date || ''))
+    );
+    writeHighScores(list.slice(0, HIGH_SCORE_LIMIT));
+    renderHighScores();
   }
 
   function mulberry32(a) {
@@ -1014,6 +1077,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
   function showResult() {
     finalScore.textContent = score;
     finalOwned.textContent = resources.filter(r => r.owned).length;
+    recordHighScore();
     result.hidden = false;
   }
 
@@ -1560,6 +1624,13 @@ actionsEl.addEventListener('lostpointercapture', event => {
   });
   thinBtn.addEventListener('click', () => selectPen('thin'));
   wideBtn.addEventListener('click', () => selectPen('wide'));
+  startBtn.addEventListener('click', () => {
+    startScreen.hidden = true;
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      render();
+    });
+  });
   newBtn.addEventListener('click', () => reset(false));
   retryBtn.addEventListener('click', () => reset(true));
   nextBtn.addEventListener('click', () => reset(false));
@@ -1579,6 +1650,7 @@ actionsEl.addEventListener('lostpointercapture', event => {
   });
 
   requestAnimationFrame(() => {
+    renderHighScores();
     resizeCanvas();
     reset(true);
   });

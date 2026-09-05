@@ -13,6 +13,35 @@
 </head>
 <body>
   <main class="app-shell">
+    <div class="start-screen" id="startScreen">
+      <div class="start-card">
+        <div class="start-title">
+          <span>INK RESOURCE</span>
+          <strong>インクをつないで、資源を取る</strong>
+        </div>
+
+        <button id="startBtn" class="start-button" type="button">はじめる</button>
+
+        <section class="start-section how-to-play" aria-labelledby="howToPlayTitle">
+          <h2 id="howToPlayTitle">遊び方</h2>
+          <ol>
+            <li><strong>スプラッシュ</strong><span>盤面を1回タップしてインクを飛ばす</span></li>
+            <li><strong>筆でつなぐ</strong><span>細筆・太筆を使い、限られたインクで島をつなぐ</span></li>
+            <li><strong>資源を取る</strong><span>30%塗ると点数判明。70%以上塗って下の起点までつなぐと取得</span></li>
+            <li><strong>4ラウンド</strong><span>スプラッシュ→筆を4回繰り返し、合計得点を競う</span></li>
+          </ol>
+        </section>
+
+        <section class="start-section high-scores" aria-labelledby="highScoreTitle">
+          <div class="start-section-heading">
+            <h2 id="highScoreTitle">ハイスコア</h2>
+            <small>BEST 3</small>
+          </div>
+          <ol id="highScoreList" class="high-score-list"></ol>
+        </section>
+      </div>
+    </div>
+
     <header class="hud" aria-label="ゲーム状況">
       <div class="score-stat">
         <span>得点</span>
