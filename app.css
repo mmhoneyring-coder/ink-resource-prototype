@@ -35,6 +35,35 @@ button { font: inherit; }
   background: linear-gradient(180deg, #f3eddd 0%, #e7dcc4 100%);
 }
 .start-screen[hidden] { display: none; }
+.turn-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(31, 37, 35, .18);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  opacity: 1;
+  transition: opacity .18s ease;
+}
+.turn-overlay[hidden] { display: none; }
+.turn-overlay.leaving { opacity: 0; }
+.turn-overlay strong {
+  min-width: min(250px, 72vw);
+  padding: 17px 24px;
+  border: 1px solid rgba(47,43,35,.14);
+  border-radius: 16px;
+  background: rgba(255,252,243,.94);
+  color: #2d2b27;
+  box-shadow: 0 12px 36px rgba(0,0,0,.16);
+  text-align: center;
+  font-size: clamp(25px, 8vw, 38px);
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: .015em;
+  font-variant-numeric: tabular-nums;
+}
 .start-card {
   width: min(100%, 420px);
   display: grid;

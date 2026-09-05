@@ -143,6 +143,8 @@
   const startScreen = document.getElementById('startScreen');
   const startBtn = document.getElementById('startBtn');
   const highScoreList = document.getElementById('highScoreList');
+  const turnOverlay = document.getElementById('turnOverlay');
+  const turnOverlayText = document.getElementById('turnOverlayText');
   const HIGH_SCORE_KEY = 'inkResource.bestRuns.v1';
   const HIGH_SCORE_LIMIT = 3;
 
@@ -165,6 +167,8 @@
   let feedbackTimer = null;
   let actionDrag = null;
   let actionsMoved = false;
+  let turnOverlayTimer = null;
+  let turnOverlayToken = 0;
 
   const pointers = new Map();
   const camera = { zoom: CONFIG.zoom.default, tx: 0, ty: 0 };
@@ -229,6 +233,46 @@
     );
     writeHighScores(list.slice(0, HIGH_SCORE_LIMIT));
     renderHighScores();
+  }
+
+  function hideTurnOverlay() {
+    turnOverlayToken += 1;
+    if (turnOverlayTimer) clearTimeout(turnOverlayTimer);
+    turnOverlayTimer = null;
+    turnOverlay.classList.remove('leaving');
+    turnOverlay.hidden = true;
+  }
+
+  function showTurnOverlay(text, duration = 680, onDone = null) {
+    const token = ++turnOverlayToken;
+    if (turnOverlayTimer) clearTimeout(turnOverlayTimer);
+    turnOverlayTimer = null;
+    turnOverlayText.textContent = text;
+    turnOverlay.classList.remove('leaving');
+    turnOverlay.hidden = false;
+
+    turnOverlayTimer = setTimeout(() => {
+      if (token !== turnOverlayToken) return;
+      turnOverlay.classList.add('leaving');
+      turnOverlayTimer = setTimeout(() => {
+        if (token !== turnOverlayToken) return;
+        turnOverlay.hidden = true;
+        turnOverlay.classList.remove('leaving');
+        turnOverlayTimer = null;
+        if (onDone) onDone();
+      }, 190);
+    }, duration);
+  }
+
+  function showRoundIntro() {
+    const remaining = CONFIG.rounds - round + 1;
+    showTurnOverlay(`残り ${remaining}巡`, 760, () => {
+      showTurnOverlay('スプラッシュ', 620);
+    });
+  }
+
+  function showMarkerIntro() {
+    showTurnOverlay('マーカー', 620);
   }
 
   function mulberry32(a) {
@@ -750,6 +794,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     updateHud();
     updateActionAvailability();
     render();
+    showMarkerIntro();
   }
 
   function placeResource(list, band, value, size, id, isTreasure = false) {
@@ -1072,6 +1117,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     updateHud();
     updateActionAvailability();
     render();
+    showRoundIntro();
   }
 
   function showResult() {
@@ -1456,6 +1502,7 @@ function keepActionToolbarInBounds() {
     feedbackTimer = null;
     result.hidden = true;
     distributionPanel.hidden = true;
+    hideTurnOverlay();
 
     createStarterPuddle();
     refreshConnected();
@@ -1629,11 +1676,12 @@ actionsEl.addEventListener('lostpointercapture', event => {
     requestAnimationFrame(() => {
       resizeCanvas();
       render();
+      showRoundIntro();
     });
   });
-  newBtn.addEventListener('click', () => reset(false));
-  retryBtn.addEventListener('click', () => reset(true));
-  nextBtn.addEventListener('click', () => reset(false));
+  newBtn.addEventListener('click', () => { reset(false); showRoundIntro(); });
+  retryBtn.addEventListener('click', () => { reset(true); showRoundIntro(); });
+  nextBtn.addEventListener('click', () => { reset(false); showRoundIntro(); });
   zoomInBtn.addEventListener('click', () => zoomTo(camera.zoom + CONFIG.zoom.step));
   zoomOutBtn.addEventListener('click', () => zoomTo(camera.zoom - CONFIG.zoom.step));
   zoomResetBtn.addEventListener('click', resetCamera);
