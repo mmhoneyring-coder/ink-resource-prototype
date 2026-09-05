@@ -1462,7 +1462,7 @@ function keepActionToolbarInBounds() {
     } else if (phase === 'splash') {
       hintEl.textContent = `ラウンド${round}：スプラッシュを1回`;
     } else {
-      const penLabel = penSize === 'thin' ? '細筆' : '太筆';
+      const penLabel = penSize === 'thin' ? '細ペン' : '太ペン';
       hintEl.textContent = `ラウンド${round}：${penLabel}　残りインク ${Math.ceil(brushRemaining)}`;
     }
   }

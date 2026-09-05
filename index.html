@@ -26,9 +26,9 @@
           <h2 id="howToPlayTitle">遊び方</h2>
           <ol>
             <li><strong>スプラッシュ</strong><span>盤面を1回タップしてインクを飛ばす</span></li>
-            <li><strong>筆でつなぐ</strong><span>細筆・太筆を使い、限られたインクで島をつなぐ</span></li>
+            <li><strong>マーカーでつなぐ</strong><span>細ペン・太ペンを使い、限られたインクで島をつなぐ</span></li>
             <li><strong>資源を取る</strong><span>30%塗ると点数判明。70%以上塗って下の起点までつなぐと取得</span></li>
-            <li><strong>4ラウンド</strong><span>スプラッシュ→筆を4回繰り返し、合計得点を競う</span></li>
+            <li><strong>4ラウンド</strong><span>スプラッシュ→マーカーを4回繰り返し、合計得点を競う</span></li>
           </ol>
         </section>
 
@@ -60,7 +60,7 @@
           </span>
           <span class="phase-face phase-back">
             <span class="phase-icon brush-mark">✎</span>
-            <span>筆</span>
+            <span>マーカー</span>
           </span>
         </span>
         <small id="splashLeft" class="phase-round">1/4</small>
@@ -81,16 +81,16 @@
       <section class="score-board" id="scoreBoard" aria-label="公開得点ボード"></section>
     </section>
 
-    <nav class="actions" aria-label="筆操作">
-      <button id="brushBtn" class="action" type="button" aria-label="細筆">
+    <nav class="actions" aria-label="マーカー操作">
+      <button id="brushBtn" class="action" type="button" aria-label="細ペン">
         <span class="pen-dot thin-dot"></span>
-        <span>細筆</span>
+        <span>細ペン</span>
       </button>
-      <button id="moveBtn" class="action" type="button" aria-label="太筆">
+      <button id="moveBtn" class="action" type="button" aria-label="太ペン">
         <span class="pen-dot wide-dot"></span>
-        <span>太筆</span>
+        <span>太ペン</span>
       </button>
-      <div class="ink-gauge inactive" id="penLoad" role="progressbar" aria-label="筆インク残量" aria-valuemin="0" aria-valuemax="650" aria-valuenow="650">
+      <div class="ink-gauge inactive" id="penLoad" role="progressbar" aria-label="マーカーインク残量" aria-valuemin="0" aria-valuemax="650" aria-valuenow="650">
         <span class="ink-label">INK</span>
         <div class="meter" aria-hidden="true"><i id="inkFill"></i></div>
         <small id="brushRemaining">650</small>
