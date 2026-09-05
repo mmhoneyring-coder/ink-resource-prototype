@@ -15,7 +15,7 @@
     zoom: { min: 1, default: 1, max: 1.35, step: 0.10 },
     splash: {
       // Back-to-basics splash: a few nearby islands, no wide speck field.
-      coreCount: [6, 9],
+      coreCount: [3, 5],
       dropletCount: [5, 9],
       speckCount: [0, 0],
       coreRadius: [9 * GRID_SCALE, 14 * GRID_SCALE],
