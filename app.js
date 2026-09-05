@@ -16,7 +16,7 @@
     splash: {
       // Back-to-basics splash: a few nearby islands, no wide speck field.
       coreCount: [3, 5],
-      dropletCount: [5, 9],
+      dropletCount: [3, 12],
       speckCount: [0, 0],
       coreRadius: [9 * GRID_SCALE, 14 * GRID_SCALE],
       dropletRadius: [3 * GRID_SCALE, 6 * GRID_SCALE],
@@ -25,6 +25,7 @@
       farSpread: 84 * GRID_SCALE,
       aimDrift: [0, 0],
       minIslandArea: 12 * GRID_SCALE * GRID_SCALE,
+      targetArea: [2000 * GRID_SCALE * GRID_SCALE, 2200 * GRID_SCALE * GRID_SCALE],
       radialDirections: [2, 3],
       radialJitter: 1.0,
       radialBias: { core: 0.40, droplet: 0.50, speck: 0.58 },
@@ -591,12 +592,14 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
 
     const splashInk = new Set();
     const core = randInt(...CONFIG.splash.coreCount);
-    const droplets = randInt(...CONFIG.splash.dropletCount);
+    const targetArea = rand(...CONFIG.splash.targetArea);
     const impact = { x: cx, y: cy };
 
-    // Original-scale composition: a few medium islands near the tap and only
-    // a handful of smaller islands farther out. Placement is deliberately
-    // simple again so shape can be judged independently from spread behavior.
+    // Keep each splash's total ink area roughly stable. More medium islands
+    // consume a larger share of the area budget, leaving less for small ones.
+    const coreShare = .64 + (core - CONFIG.splash.coreCount[0]) * .08;
+    const idealCoreRadius = Math.sqrt((targetArea * coreShare / core) / Math.PI);
+
     for (let i = 0; i < core; i++) {
       const p = splashPoint(
         impact.x,
@@ -605,17 +608,23 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
         i === 0 ? 12 * GRID_SCALE : CONFIG.splash.spread
       );
       const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || rand(0, TAU);
+      const radius = clamp(
+        idealCoreRadius * rand(.90, 1.10),
+        ...CONFIG.splash.coreRadius
+      );
       addShapeFirstSplashIsland(
         p.x,
         p.y,
-        rand(...CONFIG.splash.coreRadius),
+        radius,
         flow,
         'core',
         splashInk
       );
     }
 
-    for (let i = 0; i < droplets; i++) {
+    const [minDroplets, maxDroplets] = CONFIG.splash.dropletCount;
+    let droplets = 0;
+    while (droplets < maxDroplets && (droplets < minDroplets || splashInk.size < targetArea)) {
       const p = splashPoint(
         impact.x,
         impact.y,
@@ -631,6 +640,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
         'droplet',
         splashInk
       );
+      droplets += 1;
     }
 
     pruneSmallIslands(splashInk, CONFIG.splash.minIslandArea);
