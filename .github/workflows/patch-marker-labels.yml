@@ -1,0 +1,35 @@
+name: Patch marker labels
+'on':
+  push:
+    paths:
+      - '.github/workflows/patch-marker-labels.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply marker label patch
+        run: python .github/scripts/patch_marker_labels.py
+      - name: Validate
+        run: |
+          node --check app.js
+          git diff --check
+          python - <<'PY'
+          from pathlib import Path
+          index=Path('index.html').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          for text in ['マーカーでつなぐ','細ペン','太ペン','マーカー操作','マーカーインク残量','<span>マーカー</span>']:
+              assert text in index, text
+          assert "penSize === 'thin' ? '細ペン' : '太ペン'" in js
+          assert '細筆' not in index and '太筆' not in index
+          PY
+          git diff -- index.html app.js
+      - name: Commit change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html app.js
+          git commit -m "Rename brush UI to marker"
+          git push
