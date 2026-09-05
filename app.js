@@ -594,6 +594,7 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     const core = randInt(...CONFIG.splash.coreCount);
     const targetArea = rand(...CONFIG.splash.targetArea);
     const impact = { x: cx, y: cy };
+    const directions = createSplashDirections();
 
     // Keep each splash's total ink area roughly stable. More medium islands
     // consume a larger share of the area budget, leaving less for small ones.
@@ -601,11 +602,13 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     const idealCoreRadius = Math.sqrt((targetArea * coreShare / core) / Math.PI);
 
     for (let i = 0; i < core; i++) {
-      const p = splashPoint(
+      const p = splashPointBiased(
         impact.x,
         impact.y,
         i === 0 ? 0 : 10 * GRID_SCALE,
-        i === 0 ? 12 * GRID_SCALE : CONFIG.splash.spread
+        i === 0 ? 12 * GRID_SCALE : CONFIG.splash.spread,
+        directions,
+        CONFIG.splash.radialBias.core
       );
       const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || rand(0, TAU);
       const radius = clamp(
@@ -625,11 +628,13 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
     const [minDroplets, maxDroplets] = CONFIG.splash.dropletCount;
     let droplets = 0;
     while (droplets < maxDroplets && (droplets < minDroplets || splashInk.size < targetArea)) {
-      const p = splashPoint(
+      const p = splashPointBiased(
         impact.x,
         impact.y,
         26 * GRID_SCALE,
-        CONFIG.splash.farSpread
+        CONFIG.splash.farSpread,
+        directions,
+        CONFIG.splash.radialBias.droplet
       );
       const flow = Math.atan2(p.y - impact.y, p.x - impact.x) || rand(0, TAU);
       addShapeFirstSplashIsland(
