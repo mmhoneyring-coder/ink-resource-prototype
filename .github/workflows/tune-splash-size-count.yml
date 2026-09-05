@@ -1,0 +1,55 @@
+name: Tune splash size and count
+on:
+  push:
+    paths:
+      - '.github/workflows/tune-splash-size-count.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tune splash size and count
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app.js')
+          src = path.read_text(encoding='utf-8')
+          old = '''      coreCount: [3, 5],
+      dropletCount: [1, 5],
+      speckCount: [0, 0],
+      coreRadius: [14 * GRID_SCALE, 20 * GRID_SCALE],
+      dropletRadius: [5 * GRID_SCALE, 10 * GRID_SCALE],
+      speckRadius: [3 * GRID_SCALE, 5 * GRID_SCALE],
+      spread: 60 * GRID_SCALE,
+      farSpread: 84 * GRID_SCALE,
+      aimDrift: [0, 0],
+      minIslandArea: 30 * GRID_SCALE * GRID_SCALE,'''
+          new = '''      coreCount: [6, 9],
+      dropletCount: [5, 9],
+      speckCount: [0, 0],
+      coreRadius: [9 * GRID_SCALE, 14 * GRID_SCALE],
+      dropletRadius: [3 * GRID_SCALE, 6 * GRID_SCALE],
+      speckRadius: [3 * GRID_SCALE, 5 * GRID_SCALE],
+      spread: 60 * GRID_SCALE,
+      farSpread: 84 * GRID_SCALE,
+      aimDrift: [0, 0],
+      minIslandArea: 12 * GRID_SCALE * GRID_SCALE,'''
+          if src.count(old) != 1:
+              raise SystemExit(f'Expected one splash tuning block, found {src.count(old)}')
+          path.write_text(src.replace(old, new, 1), encoding='utf-8')
+          PY
+          node --check app.js
+          git diff --check
+          git diff -- app.js
+      - name: Commit tuning
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app.js
+          git commit -m "Tune splash island size and count"
+          git push
