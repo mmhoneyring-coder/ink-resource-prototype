@@ -45,24 +45,19 @@ button { font: inherit; }
   backdrop-filter: blur(1px);
   -webkit-backdrop-filter: blur(1px);
   opacity: 1;
-  transition: opacity .18s ease;
+  transition: opacity .42s ease;
 }
 .turn-overlay[hidden] { display: none; }
 .turn-overlay.leaving { opacity: 0; }
 .turn-overlay strong {
-  min-width: min(250px, 72vw);
-  padding: 17px 24px;
-  border: 1px solid rgba(47,43,35,.14);
-  border-radius: 16px;
-  background: rgba(255,252,243,.94);
   color: #2d2b27;
-  box-shadow: 0 12px 36px rgba(0,0,0,.16);
   text-align: center;
-  font-size: clamp(25px, 8vw, 38px);
+  font-size: clamp(28px, 8.5vw, 40px);
   line-height: 1.05;
   font-weight: 900;
   letter-spacing: .015em;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 rgba(255,255,255,.72), 0 3px 12px rgba(0,0,0,.14);
 }
 .start-card {
   width: min(100%, 420px);

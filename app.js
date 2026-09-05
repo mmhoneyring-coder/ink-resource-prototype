@@ -243,7 +243,7 @@
     turnOverlay.hidden = true;
   }
 
-  function showTurnOverlay(text, duration = 680, onDone = null) {
+  function showTurnOverlay(text, duration = 1000, onDone = null) {
     const token = ++turnOverlayToken;
     if (turnOverlayTimer) clearTimeout(turnOverlayTimer);
     turnOverlayTimer = null;
@@ -260,19 +260,19 @@
         turnOverlay.classList.remove('leaving');
         turnOverlayTimer = null;
         if (onDone) onDone();
-      }, 190);
+      }, 420);
     }, duration);
   }
 
   function showRoundIntro() {
     const remaining = CONFIG.rounds - round + 1;
-    showTurnOverlay(`残り ${remaining}巡`, 760, () => {
-      showTurnOverlay('スプラッシュ', 620);
+    showTurnOverlay(`残り ${remaining}巡`, 1250, () => {
+      showTurnOverlay('スプラッシュ', 1000);
     });
   }
 
   function showMarkerIntro() {
-    showTurnOverlay('マーカー', 620);
+    showTurnOverlay('マーカー', 1000);
   }
 
   function mulberry32(a) {
