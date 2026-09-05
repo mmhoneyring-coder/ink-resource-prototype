@@ -4,64 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>START Shape Lab</title>
-  <link rel="stylesheet" href="starter-single-lab.css">
+  <style>
+    :root { color-scheme: light; --bg:#ebe6dc; --panel:#f6f2ea; --line:#d7d1c4; --text:#2a2926; --muted:#6c675c; --good:#2d5f48; --bad:#7b4741; --white:#fff; }
+    *{box-sizing:border-box} html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif} body{padding:12px}.lab{max-width:980px;margin:0 auto;display:grid;gap:14px}.card{background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:16px}.head{display:grid;gap:10px}h1,h2,h3,p{margin:0}h1{font-size:28px}.lead,.meta,.small{color:var(--muted)}.lead{line-height:1.55}.toolbar,.row,.summary,.controls,.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.toolbar{margin-top:4px}button,.pill,.toggle,.range-box{border:1px solid var(--line);border-radius:14px;background:var(--panel)}button{appearance:none;cursor:pointer;color:var(--text);font:inherit;padding:12px 16px}.primary{background:var(--good);border-color:var(--good);color:var(--white)}.secondary{background:var(--bad);border-color:var(--bad);color:var(--white)}button:disabled{opacity:.45}.pill{padding:8px 12px;font-size:14px;color:var(--muted)}.toggle{display:inline-flex;gap:10px;align-items:center;padding:12px 14px}.status,.viewer-head,.controls{justify-content:space-between}.canvas-stack{display:grid;gap:12px}.canvas-box{border:1px solid var(--line);border-radius:12px;background:#f9f7f1;overflow:hidden}canvas{width:100%;height:auto;display:block}.range-box{display:grid;gap:8px;padding:12px 14px;flex:1 1 280px}.range-row{display:flex;justify-content:space-between;gap:10px}input[type=range]{width:100%}.mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.accepted-list,.analysis-list{display:grid;gap:8px;color:var(--muted)}.done{text-align:center;color:var(--muted);padding:22px}.small{font-size:13px}@media(max-width:640px){body{padding:10px}h1{font-size:24px}.actions{width:100%}.actions button{flex:1 1 0}}
+  </style>
 </head>
 <body>
-  <main class="lab">
-    <section class="card head">
-      <div>
-        <h1>START Shape Lab</h1>
-        <p class="lead">参考画像そのものをなぞるのではなく、同じ「形の作られ方」に見える生成方式と条件帯を探します。候補は1枚ずつ、採用 / 不採用で評価します。</p>
-      </div>
-      <div class="toolbar">
-        <button id="newBatchBtn" type="button">新しい候補セット</button>
-        <button id="resetBtn" type="button">すべてリセット</button>
-        <button id="copyAcceptedBtn" type="button">採用JSONをコピー</button>
-        <label class="toggle"><input id="showCore" type="checkbox"> 内部円を表示</label>
-      </div>
-    </section>
-
-    <section class="card status">
-      <div class="stats">
-        <span class="pill" id="batchPill">セット 1</span>
-        <span class="pill" id="countPill">候補 1 / 36</span>
-        <span class="pill" id="remainPill">残り 35</span>
-        <span class="pill" id="acceptedPill">採用 0</span>
-        <span class="pill" id="rejectedPill">不採用 0</span>
-      </div>
-      <div class="muted" id="currentMeta">候補生成中…</div>
-    </section>
-
-    <section id="viewer" class="card">
-      <div class="viewer-head">
-        <div><h2 id="candidateTitle">候補</h2><div class="muted" id="candidateId">--</div></div>
-        <span class="pill" id="familyPill">方式 --</span>
-      </div>
-      <div class="canvases">
-        <div class="canvasbox"><canvas id="fullCanvas" width="760" height="540"></canvas></div>
-        <div class="canvasbox"><canvas id="startCanvas" width="760" height="190"></canvas></div>
-      </div>
-      <div class="controls">
-        <div class="rangebox">
-          <div class="rangerow"><strong>巻き具合</strong><span id="wrapValue">62%</span></div>
-          <input id="wrapRange" type="range" min="0" max="100" step="1" value="62">
-          <div class="small">補助調整です。候補の生成条件自体は保持されます。</div>
-        </div>
-        <div class="actions">
-          <button id="rejectBtn" class="secondary" type="button">不採用</button>
-          <button id="acceptBtn" class="primary" type="button">採用</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="doneView" class="card done" hidden>この候補セットは確認済みです。「新しい候補セット」で続けられます。</section>
-
-    <section class="lists">
-      <section class="card"><h3>採用済み</h3><div class="list" id="acceptedList">まだありません。</div></section>
-      <section class="card"><h3>方式別の採用傾向</h3><div class="list" id="analysisList">評価データがまだありません。</div></section>
-    </section>
-  </main>
-  <script src="starter-wrap-profiles.js"></script>
-  <script src="starter-single-lab.js"></script>
+<main class="lab">
+<section class="card head"><div><h1>START Shape Lab</h1><p class="lead">参考画像と同じ「形の作られ方」に見える生成方式と条件帯を探します。内部では多数候補を生成・精査し、そのうえで良い候補だけを1枚ずつ表示します。</p></div><div class="toolbar"><button id="newBatchBtn">新しい候補セットを作る</button><button id="resetBtn">すべてリセット</button><button id="copyAcceptedBtn">採用JSONをコピー</button><label class="toggle"><input id="showCore" type="checkbox"> 内部円を表示</label></div></section>
+<section class="card row status"><div class="summary"><span class="pill" id="batchPill">セット 1</span><span class="pill" id="poolPill">内部生成 120 → 表示 12</span><span class="pill" id="countPill">候補 1 / 12</span><span class="pill" id="remainPill">残り 11</span><span class="pill" id="acceptedPill">採用 0</span><span class="pill" id="rejectedPill">不採用 0</span></div><div id="currentMeta" class="meta">候補生成中…</div></section>
+<section id="viewer" class="card"><div class="row viewer-head"><div><h2 id="candidateTitle">候補</h2><div id="candidateId" class="meta">--</div></div><div id="familyPill" class="pill">方式 --</div></div><div class="canvas-stack"><div class="canvas-box"><canvas id="fullCanvas" width="760" height="540"></canvas></div><div class="canvas-box"><canvas id="startCanvas" width="760" height="190"></canvas></div></div><div class="controls"><div class="range-box"><div class="range-row"><strong>巻き具合</strong><span id="wrapValue">100%</span></div><input id="wrapRange" type="range" min="88" max="100" step="1" value="100"><div class="small">採用傾向を踏まえて高巻き中心です。</div></div><div class="actions"><button id="rejectBtn" class="secondary">不採用</button><button id="acceptBtn" class="primary">採用</button></div></div></section>
+<section id="doneView" class="card done" hidden>この候補セットは最後まで確認しました。必要なら次の候補セットを作れます。</section>
+<section class="mini-grid"><section class="card"><h3>採用済み</h3><div id="acceptedList" class="accepted-list"><div>まだありません。</div></div></section><section class="card"><h3>分析メモ</h3><div id="analysisList" class="analysis-list"><div>評価データがまだありません。</div></div></section></section>
+</main>
+<script>
+const STORE='starter-shape-lab-v3', RAW=120, SHOW=12, TAU=Math.PI*2;
+const F={covered_core:'核＋被覆',smooth_lobes:'滑らかローブ'};
+const $=id=>document.getElementById(id), E={newBatchBtn:$('newBatchBtn'),resetBtn:$('resetBtn'),copyAcceptedBtn:$('copyAcceptedBtn'),showCore:$('showCore'),batchPill:$('batchPill'),poolPill:$('poolPill'),countPill:$('countPill'),remainPill:$('remainPill'),acceptedPill:$('acceptedPill'),rejectedPill:$('rejectedPill'),currentMeta:$('currentMeta'),viewer:$('viewer'),doneView:$('doneView'),candidateTitle:$('candidateTitle'),candidateId:$('candidateId'),familyPill:$('familyPill'),fullCanvas:$('fullCanvas'),startCanvas:$('startCanvas'),wrapRange:$('wrapRange'),wrapValue:$('wrapValue'),acceptBtn:$('acceptBtn'),rejectBtn:$('rejectBtn'),acceptedList:$('acceptedList'),analysisList:$('analysisList')};
+function rng32(a){return()=>{let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296}}function rr(r,a,b){return a+(b-a)*r()}function ri(r,a,b){return Math.floor(rr(r,a,b+1))}function clamp(v,a,b){return Math.max(a,Math.min(b,v))}function lerp(a,b,t){return a+(b-a)*t}function smoothstep(t){return t*t*(3-2*t)}
+function def(){return{batchNo:1,index:0,candidates:[],accepted:[],rejected:[],showCore:false,rawCount:RAW,selectedCount:SHOW,selectedSummary:{covered_core:0,smooth_lobes:0}}}function load(){try{return{...def(),...JSON.parse(localStorage.getItem(STORE)||'null')}}catch{return def()}}let state=load();function save(){localStorage.setItem(STORE,JSON.stringify(state))}
+function weights(){const out={covered_core:.36,smooth_lobes:.64};for(const k of Object.keys(out)){const a=state.accepted.filter(x=>x.family===k).length,r=state.rejected.filter(x=>x.family===k).length,rate=(a+1)/(a+r+2);out[k]*=.75+rate*.9}return out}function choose(r,w){const xs=Object.entries(w),sum=xs.reduce((s,x)=>s+x[1],0);let t=r()*sum;for(const[k,v]of xs){t-=v;if(t<=0)return k}return xs[0][0]}
+function angles(n,r,g=.22){const a=Array.from({length:n},()=>r()*TAU).sort((x,y)=>x-y);for(let p=0;p<5;p++)for(let i=0;i<n;i++){const prev=i? a[i-1]:a[n-1]-TAU,next=i<n-1?a[i+1]:a[0]+TAU;if(a[i]<prev+g)a[i]=prev+g;if(a[i]>next-g)a[i]=next-g}return a.map(x=>(x%TAU+TAU)%TAU).sort((x,y)=>x-y)}
+function makeCandidate(family,seed,n){const r=rng32(seed),base={id:`b${state.batchNo}-${n}-${family}-${seed.toString(36)}`,family,seed,wrap:ri(r,96,100)};if(family==='covered_core')return{...base,p:{rx:rr(r,.96,1.08),ry:rr(r,.92,1.08),wave:rr(r,.07,.13),f1:ri(r,2,3),f2:ri(r,5,7),cover:rr(r,.12,.19),lobes:ri(r,7,10),dents:ri(r,6,9),lw:rr(r,.24,.42),lmin:rr(r,.07,.11),lmax:rr(r,.14,.20),dmin:rr(r,.05,.08),dmax:rr(r,.09,.14),p1:r()*TAU,p2:r()*TAU,p3:r()*TAU}};return{...base,p:{rx:rr(r,.95,1.07),ry:rr(r,.94,1.06),lobes:ri(r,7,11),cover:rr(r,.10,.18),low:rr(r,.07,.11),high:rr(r,.02,.05),lf:ri(r,2,3),hf:ri(r,6,8),lmin:rr(r,.07,.10),lmax:rr(r,.14,.19),dent:rr(r,.05,.09),p1:r()*TAU,p2:r()*TAU,p3:r()*TAU}}}
+function radial(c){const p=c.p,r=rng32(c.seed);if(c.family==='covered_core'){const ls=angles(p.lobes,r,.20).map(a=>({a,w:rr(r,p.lw*.78,p.lw*1.10),amp:rr(r,p.lmin,p.lmax)})),ds=angles(p.dents,r,.22).map(a=>({a,w:rr(r,.18,.34),amp:rr(r,p.dmin,p.dmax)}));return th=>{let x=1+p.wave*Math.sin(th*p.f1+p.p1)+p.wave*.5*Math.sin(th*p.f2+p.p2)+p.cover*(.5+.5*Math.sin(th+p.p3));for(const l of ls){const d=Math.atan2(Math.sin(th-l.a),Math.cos(th-l.a)),q=clamp(1-Math.abs(d)/l.w,0,1);x+=l.amp*smoothstep(q)}for(const d0 of ds){const d=Math.atan2(Math.sin(th-d0.a),Math.cos(th-d0.a)),q=clamp(1-Math.abs(d)/d0.w,0,1);x-=d0.amp*smoothstep(q)}return Math.max(.70,x)}}const ls=angles(p.lobes,r,.19).map(a=>({a,w:rr(r,.18,.34),amp:rr(r,p.lmin,p.lmax)}));return th=>{let x=1+p.cover*(.48+.52*Math.sin(th+p.p3))+p.low*Math.sin(th*p.lf+p.p1)+p.high*Math.sin(th*p.hf+p.p2);for(const l of ls){const d=Math.atan2(Math.sin(th-l.a),Math.cos(th-l.a)),q=clamp(1-Math.abs(d)/l.w,0,1);x+=l.amp*smoothstep(q);x-=p.dent*q*(1-q)*.9}return Math.max(.70,x)}}
+function score(c){const f=radial(c),a=Array.from({length:240},(_,i)=>f(i/240*TAU));let mean=a.reduce((s,v)=>s+v,0)/a.length,sd=Math.sqrt(a.reduce((s,v)=>s+(v-mean)**2,0)/a.length),min=Math.min(...a),max=Math.max(...a),peaks=0,valleys=0,curv=0,curvMax=0;for(let i=0;i<a.length;i++){const p=a[(i-1+a.length)%a.length],v=a[i],n=a[(i+1)%a.length];if(v>p&&v>n)peaks++;if(v<p&&v<n)valleys++;const c2=Math.abs(n-2*v+p);curv+=c2;curvMax=Math.max(curvMax,c2)}const span=max-min,smooth=clamp(1-(curv/a.length-.004)/.030,0,1),spike=clamp((curvMax-.09)/.18,0,1),varS=clamp(1-Math.abs(sd-.09)/.06,0,1),spanS=clamp(1-Math.abs(span-.26)/.17,0,1),peakS=clamp(1-Math.abs(peaks-8)/6,0,1),valS=clamp(1-Math.abs(valleys-8)/6,0,1),bias=c.family==='smooth_lobes'?.015:0;c.metrics={sd,span,peaks,valleys,smooth,spike};c.score=.24*varS+.20*spanS+.18*peakS+.16*valS+.22*smooth-.18*spike+bias;return c.score}
+function batch(){const r=rng32((Date.now()^Math.floor(Math.random()*1e9))>>>0),w=weights(),raw=[];for(let i=0;i<RAW;i++){const family=choose(r,w),seed=Math.floor(r()*1e9);raw.push(makeCandidate(family,seed,i+1))}raw.forEach(score);const ranked=raw.sort((a,b)=>b.score-a.score),by={smooth_lobes:ranked.filter(x=>x.family==='smooth_lobes'),covered_core:ranked.filter(x=>x.family==='covered_core')},chosen=[...by.smooth_lobes.slice(0,7),...by.covered_core.slice(0,5)].sort((a,b)=>b.score-a.score).slice(0,SHOW);state.candidates=chosen;state.index=0;state.rawCount=RAW;state.selectedCount=chosen.length;state.selectedSummary={smooth_lobes:chosen.filter(x=>x.family==='smooth_lobes').length,covered_core:chosen.filter(x=>x.family==='covered_core').length};save()}
+function points(c,W,H){const f=radial(c),wrap=c.wrap/100,cx=W/2,cy=H*.54,rx=W*.22*c.p.rx,ry=H*.20*c.p.ry,out=[];for(let i=0;i<280;i++){const t=i/280,th=t*TAU,rd=f(th),xa=cx+Math.cos(th)*rx*rd,ya=cy+Math.sin(th)*ry*rd,xf=cx+(t-.5)*W*.56,yf=cy+Math.sin(th)*ry*.9-Math.max(0,Math.sin(th))*42*rd;out.push([lerp(xf,xa,wrap),lerp(yf,ya,wrap)])}return out}
+function bounds(a){let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const[x,y]of a){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}return{x0,y0,x1,y1,w:x1-x0,h:y1-y0}}function fit(a,W,H){const b=bounds(a),s=Math.min((W-68)/b.w,(H-76)/b.h),cx=(b.x0+b.x1)/2,cy=(b.y0+b.y1)/2;return a.map(([x,y])=>[W/2+(x-cx)*s,H/2+(y-cy)*s])}function grid(ctx,W,H){ctx.clearRect(0,0,W,H);ctx.fillStyle='#f9f7f1';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#e2ddd2';for(let x=0;x<W;x+=44){ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,H);ctx.stroke()}for(let y=0;y<H;y+=44){ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);ctx.stroke()}}function path(ctx,a){ctx.beginPath();ctx.moveTo(a[0][0],a[0][1]);for(let i=1;i<a.length;i++)ctx.lineTo(a[i][0],a[i][1]);ctx.closePath()}
+function draw(c){const fc=E.fullCanvas.getContext('2d'),sc=E.startCanvas.getContext('2d'),W=E.fullCanvas.width,H=E.fullCanvas.height,SW=E.startCanvas.width,SH=E.startCanvas.height;grid(fc,W,H);grid(sc,SW,SH);let a=fit(points(c,W,H),W,H);if(state.showCore){const b=bounds(a);fc.beginPath();fc.ellipse(W/2,H/2,b.w*.22,b.h*.17,0,0,TAU);fc.fillStyle='rgba(115,138,159,.22)';fc.fill()}path(fc,a);fc.fillStyle='#162129';fc.fill();const cut=H*.30;fc.setLineDash([10,10]);fc.strokeStyle='#93a0a8';fc.beginPath();fc.moveTo(28,cut);fc.lineTo(W-28,cut);fc.stroke();fc.setLineDash([]);fc.fillStyle='#6c675c';fc.font='24px sans-serif';fc.fillText('島全体 / 線より上が30%',24,34);const b=bounds(a),top=a.filter(p=>p[1]<=b.y0+b.h*.30);if(top.length>2){const tb=bounds(top),s=Math.min((SW-40)/tb.w,(SH-30)/Math.max(1,tb.h)),cx=(tb.x0+tb.x1)/2,all=a.map(([x,y])=>[SW/2+(x-cx)*s,10+(y-tb.y0)*s]);sc.save();sc.beginPath();sc.rect(0,0,SW,SH);sc.clip();path(sc,all);sc.fillStyle='#162129';sc.fill();sc.restore()}sc.fillStyle='#6c675c';sc.font='24px sans-serif';sc.fillText('START表示',24,34)}
+function lists(){E.acceptedList.innerHTML=state.accepted.length?state.accepted.slice(-12).reverse().map(x=>`<div>${F[x.family]} <span class="small">${x.id} / 巻き ${x.wrap}% / 評価 ${x.score.toFixed(2)}</span></div>`).join(''):'<div>まだありません。</div>';const lines=[];for(const k of Object.keys(F)){const a=state.accepted.filter(x=>x.family===k).length,r=state.rejected.filter(x=>x.family===k).length;if(a+r)lines.push(`${F[k]}：採用 ${a} / 不採用 ${r}（${Math.round(a/(a+r)*100)}%）`)}lines.push(`直近セット：内部生成 ${state.rawCount} / 表示 ${state.selectedCount}`);lines.push(`表示内訳：滑らかローブ ${state.selectedSummary.smooth_lobes||0} / 核＋被覆 ${state.selectedSummary.covered_core||0}`);E.analysisList.innerHTML=lines.map(x=>`<div>${x}</div>`).join('')}
+function render(){if(!state.candidates.length)batch();const total=state.candidates.length,c=state.candidates[state.index],done=!c;E.batchPill.textContent=`セット ${state.batchNo}`;E.poolPill.textContent=`内部生成 ${state.rawCount} → 表示 ${state.selectedCount}`;E.countPill.textContent=done?`候補 ${total} / ${total}`:`候補 ${state.index+1} / ${total}`;E.remainPill.textContent=`残り ${Math.max(0,total-state.index-(done?0:1))}`;E.acceptedPill.textContent=`採用 ${state.accepted.length}`;E.rejectedPill.textContent=`不採用 ${state.rejected.length}`;E.viewer.hidden=done;E.doneView.hidden=!done;E.showCore.checked=state.showCore;E.copyAcceptedBtn.disabled=!state.accepted.length;lists();if(done){E.currentMeta.textContent='この候補セットは確認済みです。';return}E.candidateTitle.textContent=`候補 ${state.index+1}`;E.candidateId.textContent=c.id;E.familyPill.textContent=`方式 ${F[c.family]} / 評価 ${c.score.toFixed(2)}`;E.currentMeta.textContent=`候補ID ${c.id}`;E.wrapRange.value=c.wrap;E.wrapValue.textContent=`${c.wrap}%`;draw(c)}
+function decide(ok){const c=state.candidates[state.index];if(!c)return;const rec={id:c.id,family:c.family,seed:c.seed,wrap:c.wrap,score:c.score,p:c.p,batchNo:state.batchNo};(ok?state.accepted:state.rejected).push(rec);state.index++;save();render()}
+E.newBatchBtn.onclick=()=>{state.batchNo++;batch();render()};E.resetBtn.onclick=()=>{state=def();batch();render()};E.showCore.onchange=()=>{state.showCore=E.showCore.checked;save();render()};E.wrapRange.oninput=()=>{const c=state.candidates[state.index];if(!c)return;c.wrap=Number(E.wrapRange.value);E.wrapValue.textContent=`${c.wrap}%`;save();draw(c)};E.acceptBtn.onclick=()=>decide(true);E.rejectBtn.onclick=()=>decide(false);E.copyAcceptedBtn.onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(state.accepted,null,2));E.currentMeta.textContent='採用JSONをコピーしました。'}catch{E.currentMeta.textContent='コピーに失敗しました。'}};render();
+</script>
 </body>
 </html>
