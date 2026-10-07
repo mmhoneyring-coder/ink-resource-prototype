@@ -2,10 +2,12 @@
   'use strict';
 
   const GRID_SCALE = 2;
+  const BOARD_WIDTH = 420;
+  const BOARD_HEIGHT = 870;
 
   const CONFIG = {
-    cols: Math.round(450 * GRID_SCALE * 9 / 19.5),
-    rows: 450 * GRID_SCALE,
+    cols: BOARD_WIDTH,
+    rows: BOARD_HEIGHT,
     rounds: 4,
     brushAreaPerTurn: 650 * GRID_SCALE * GRID_SCALE,
     starterPuddle: { radius: 84 * GRID_SCALE },
@@ -298,10 +300,6 @@
       [out[i], out[j]] = [out[j], out[i]];
     }
     return out;
-  }
-
-  function syncBoardWidthToViewport() {
-    CONFIG.cols = Math.round(CONFIG.rows * 9 / 19.5);
   }
 
   function starterAnchor() {
@@ -1487,7 +1485,6 @@ function keepActionToolbarInBounds() {
   function reset(useSameSeed) {
     if (!useSameSeed) seed = randomSeed();
     rng = mulberry32(seed);
-    syncBoardWidthToViewport();
     ink = new Set();
     starterInk = new Set();
     connected = new Set();
