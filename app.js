@@ -117,6 +117,8 @@
   const ctx = canvas.getContext('2d');
   const boardWrap = document.getElementById('boardWrap');
   const appShell = document.querySelector('.app-shell');
+  const playAreaEl = document.querySelector('.play-area');
+  const hudEl = document.querySelector('.hud');
   const actionsEl = document.querySelector('.actions');
   const scoreBoardEl = document.getElementById('scoreBoard');
   const scoreEl = document.getElementById('score');
@@ -1166,7 +1168,35 @@ function keepActionToolbarInBounds() {
   positionActionToolbar(rect.left - shellRect.left, rect.top - shellRect.top);
 }
 
+  function fitPlayAreaToViewport() {
+    const shellWidth = appShell.clientWidth;
+    const hudHeight = hudEl.getBoundingClientRect().height;
+    const availableHeight = Math.max(0, appShell.clientHeight - hudHeight);
+    const railWidth = parseFloat(getComputedStyle(appShell).getPropertyValue('--score-rail-width')) || 44;
+    const scale = Math.max(0.001, Math.min(
+      (shellWidth - railWidth) / CONFIG.cols,
+      availableHeight / CONFIG.rows
+    ));
+    const boardWidth = CONFIG.cols * scale;
+    const boardHeight = CONFIG.rows * scale;
+    const areaWidth = boardWidth + railWidth;
+    playAreaEl.style.width = areaWidth + 'px';
+    playAreaEl.style.height = boardHeight + 'px';
+
+    actionsEl.style.width = Math.max(0, boardWidth - 12) + 'px';
+    if (!actionsMoved) {
+      const boardLeft = (shellWidth - areaWidth) / 2;
+      const boardTop = hudHeight + (availableHeight - boardHeight) / 2;
+      const toolbarHeight = actionsEl.getBoundingClientRect().height;
+      actionsEl.style.left = (boardLeft + 6) + 'px';
+      actionsEl.style.top = (boardTop + boardHeight * .77 - toolbarHeight - 6) + 'px';
+      actionsEl.style.right = 'auto';
+      actionsEl.style.bottom = 'auto';
+    }
+  }
+
   function resizeCanvas() {
+    fitPlayAreaToViewport();
     const rect = boardWrap.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.max(1, Math.round(rect.width * dpr));
@@ -1174,6 +1204,7 @@ function keepActionToolbarInBounds() {
     ctx.setTransform(dpr,0,0,dpr,0,0);
     clampCamera();
     render();
+    if (actionsMoved) requestAnimationFrame(keepActionToolbarInBounds);
   }
 
   function boardMetrics() {
@@ -1694,10 +1725,20 @@ actionsEl.addEventListener('lostpointercapture', event => {
   distributionClose.addEventListener('click', () => {
     distributionPanel.hidden = true;
   });
-  window.addEventListener('resize', () => {
-    resizeCanvas();
-    if (actionsMoved) requestAnimationFrame(keepActionToolbarInBounds);
-  });
+  let resizeQueued = false;
+  function queueResize() {
+    if (resizeQueued) return;
+    resizeQueued = true;
+    requestAnimationFrame(() => {
+      resizeQueued = false;
+      resizeCanvas();
+    });
+  }
+  window.addEventListener('resize', queueResize);
+  window.visualViewport?.addEventListener('resize', queueResize);
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(queueResize).observe(appShell);
+  }
 
   requestAnimationFrame(() => {
     renderHighScores();
