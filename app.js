@@ -1141,32 +1141,31 @@ function splashPoint(cx, cy, minDistance, maxDistance) {
   }
 
   function actionToolbarBounds() {
-  const shellRect = appShell.getBoundingClientRect();
-  const boardRect = boardWrap.getBoundingClientRect();
-  const toolRect = actionsEl.getBoundingClientRect();
-  const margin = 4;
-  const minLeft = boardRect.left - shellRect.left + margin;
-  const minTop = boardRect.top - shellRect.top + margin;
-  const maxLeft = Math.max(minLeft, boardRect.right - shellRect.left - toolRect.width - margin);
-  const maxTop = Math.max(minTop, boardRect.bottom - shellRect.top - toolRect.height - margin);
-  return { minLeft, minTop, maxLeft, maxTop };
-}
+    const shellRect = appShell.getBoundingClientRect();
+    const boardRect = boardWrap.getBoundingClientRect();
+    const toolRect = actionsEl.getBoundingClientRect();
+    const margin = 4;
+    const fixedLeft = boardRect.left - shellRect.left + 6;
+    const minTop = boardRect.top - shellRect.top + margin;
+    const maxTop = Math.max(minTop, boardRect.bottom - shellRect.top - toolRect.height - margin);
+    return { fixedLeft, minTop, maxTop };
+  }
 
-function positionActionToolbar(left, top) {
-  const bounds = actionToolbarBounds();
-  actionsEl.style.left = `${clamp(left, bounds.minLeft, bounds.maxLeft)}px`;
-  actionsEl.style.top = `${clamp(top, bounds.minTop, bounds.maxTop)}px`;
-  actionsEl.style.right = 'auto';
-  actionsEl.style.bottom = 'auto';
-  actionsMoved = true;
-}
+  function positionActionToolbar(top) {
+    const bounds = actionToolbarBounds();
+    actionsEl.style.left = `${bounds.fixedLeft}px`;
+    actionsEl.style.top = `${clamp(top, bounds.minTop, bounds.maxTop)}px`;
+    actionsEl.style.right = 'auto';
+    actionsEl.style.bottom = 'auto';
+    actionsMoved = true;
+  }
 
-function keepActionToolbarInBounds() {
-  if (!actionsMoved) return;
-  const shellRect = appShell.getBoundingClientRect();
-  const rect = actionsEl.getBoundingClientRect();
-  positionActionToolbar(rect.left - shellRect.left, rect.top - shellRect.top);
-}
+  function keepActionToolbarInBounds() {
+    if (!actionsMoved) return;
+    const shellRect = appShell.getBoundingClientRect();
+    const rect = actionsEl.getBoundingClientRect();
+    positionActionToolbar(rect.top - shellRect.top);
+  }
 
   function fitPlayAreaToViewport() {
     const shellWidth = appShell.clientWidth;
@@ -1486,10 +1485,12 @@ function keepActionToolbarInBounds() {
     ownedEl.textContent = resources.filter(r => r.owned).length;
 
     const ratio = clamp(brushRemaining / CONFIG.brushAreaPerTurn, 0, 1);
+    const inkPercent = Math.ceil(ratio * 100);
     inkFillEl.style.height = `${ratio * 100}%`;
-    brushRemainingEl.textContent = String(Math.ceil(brushRemaining));
-    penLoadEl.setAttribute('aria-valuenow', String(Math.ceil(brushRemaining)));
-    penLoadEl.setAttribute('aria-valuemax', String(CONFIG.brushAreaPerTurn));
+    brushRemainingEl.textContent = `${inkPercent}%`;
+    penLoadEl.setAttribute('aria-valuenow', String(inkPercent));
+    penLoadEl.setAttribute('aria-valuemax', '100');
+    penLoadEl.setAttribute('aria-valuetext', `残り${inkPercent}%`);
 
     if (gameOver) {
       hintEl.textContent = '終了';
@@ -1574,14 +1575,10 @@ function keepActionToolbarInBounds() {
   const shellRect = appShell.getBoundingClientRect();
   actionDrag = {
     pointerId: event.pointerId,
-    offsetX: event.clientX - rect.left,
     offsetY: event.clientY - rect.top,
   };
 
-  actionsEl.style.left = `${rect.left - shellRect.left}px`;
-  actionsEl.style.top = `${rect.top - shellRect.top}px`;
-  actionsEl.style.right = 'auto';
-  actionsEl.style.bottom = 'auto';
+  positionActionToolbar(rect.top - shellRect.top);
   actionsEl.classList.add('dragging');
   actionsEl.setPointerCapture?.(event.pointerId);
   event.preventDefault();
@@ -1590,10 +1587,7 @@ function keepActionToolbarInBounds() {
 actionsEl.addEventListener('pointermove', event => {
   if (!actionDrag || actionDrag.pointerId !== event.pointerId) return;
   const shellRect = appShell.getBoundingClientRect();
-  positionActionToolbar(
-    event.clientX - shellRect.left - actionDrag.offsetX,
-    event.clientY - shellRect.top - actionDrag.offsetY
-  );
+  positionActionToolbar(event.clientY - shellRect.top - actionDrag.offsetY);
   event.preventDefault();
 });
 
