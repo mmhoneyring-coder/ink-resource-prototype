@@ -387,13 +387,13 @@ button { font: inherit; }
   font-variant-numeric: tabular-nums;
 }
 .score-board-baseline span {
-  font-size: 6px;
+  font-size: 7.5px;
   font-weight: 750;
   letter-spacing: .08em;
 }
 .score-board-baseline strong {
   color: #625c52;
-  font-size: 8.5px;
+  font-size: 10px;
   font-weight: 850;
 }
 .score-board-row:nth-child(1) { background: #eee6d5; }
@@ -420,7 +420,7 @@ button { font: inherit; }
   padding: 0;
   text-align: center;
   color: #4f4b44;
-  font-size: 9.5px;
+  font-size: 12px;
   font-weight: 850;
   line-height: 16px;
   font-variant-numeric: tabular-nums;
@@ -448,7 +448,7 @@ button { font: inherit; }
 }
 .score-token.known {
   color: var(--accent);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 900;
   text-shadow: 0 1px 0 rgba(255,255,255,.88);
 }
@@ -637,7 +637,7 @@ button { font: inherit; }
   }
   .new-button { width: 42px; }
   :root { --score-rail-width: 42px; }
-  .score-token { font-size: 9px; }
+  .score-token { font-size: 12px; }
   .score-token::before { width: 36px; }
   .actions {
     left: 4px;
