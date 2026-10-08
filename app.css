@@ -478,14 +478,14 @@ button { font: inherit; }
   width: calc(100% - 56px);
   bottom: calc(23% + max(6px, env(safe-area-inset-bottom)));
   z-index: 7;
-  min-height: 44px;
-  padding: 4px;
+  min-height: 56px;
+  padding: 5px;
   display: grid;
-  grid-template-columns: 1fr 1fr 92px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 74px;
   gap: 5px;
   align-items: center;
   border: 1px solid rgba(47,43,35,.14);
-  border-radius: 12px;
+  border-radius: 17px;
   background: rgba(255, 252, 243, .92);
   box-shadow: 0 4px 16px rgba(0,0,0,.10);
   backdrop-filter: blur(5px);
@@ -506,17 +506,17 @@ button { font: inherit; }
   pointer-events: none;
 }
 .action {
-  min-height: 36px;
-  padding: 0 6px;
+  min-height: 44px;
+  padding: 0 5px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   border: 1px solid rgba(30,30,30,.15);
-  border-radius: 9px;
+  border-radius: 12px;
   background: #fffdf7;
   color: #2d2b27;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 750;
   white-space: nowrap;
 }
@@ -535,17 +535,19 @@ button { font: inherit; }
   background: currentColor;
   opacity: .86;
 }
-.thin-dot { width: 7px; height: 7px; }
-.wide-dot { width: 14px; height: 14px; }
+.thin-dot { width: 10px; height: 10px; }
+.wide-dot { width: 20px; height: 20px; }
 
 .ink-gauge {
-  height: 36px;
+  height: 44px;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto 9px 30px;
+  grid-template-columns: 12px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas: "meter label" "meter remaining";
+  align-content: center;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  gap: 1px 6px;
   padding: 1px 2px;
   transition: opacity .15s ease;
   pointer-events: none;
@@ -554,14 +556,16 @@ button { font: inherit; }
   visibility: hidden;
 }
 .ink-label {
+  grid-area: label;
   color: #666158;
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: .05em;
 }
 .meter {
-  width: 9px;
-  height: 29px;
+  grid-area: meter;
+  width: 12px;
+  height: 40px;
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(45,48,52,.22);
@@ -578,10 +582,11 @@ button { font: inherit; }
   transition: height .05s linear;
 }
 .ink-gauge small {
-  width: 30px;
+  grid-area: remaining;
+  min-width: 0;
   text-align: left;
   color: #59554d;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -647,10 +652,10 @@ button { font: inherit; }
     left: 4px;
     right: auto;
     width: calc(100% - 50px);
-    grid-template-columns: 1fr 1fr 86px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 74px;
     gap: 4px;
   }
-  .action { font-size: 10px; }
-  .ink-gauge { grid-template-columns: auto 8px 27px; gap: 4px; }
-  .ink-gauge small { width: 27px; font-size: 8px; }
+  .action { font-size: 13px; }
+  .ink-gauge { gap: 1px 4px; }
+  .ink-gauge small { font-size: 10px; }
 }
