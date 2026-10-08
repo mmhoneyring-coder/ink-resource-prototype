@@ -146,7 +146,15 @@
   const retryBtn = document.getElementById('retryBtn');
   const nextBtn = document.getElementById('nextBtn');
   const startScreen = document.getElementById('startScreen');
+  const startCard = document.getElementById('startCard');
   const startBtn = document.getElementById('startBtn');
+  const startHelpOverlay = document.getElementById('startHelpOverlay');
+  const startHelpCard = document.getElementById('startHelpCard');
+  const startHelpTitle = document.getElementById('startHelpTitle');
+  const startHelpClose = document.getElementById('startHelpClose');
+  const startHelpIntro = document.getElementById('startHelpIntro');
+  const startHelpRules = document.getElementById('startHelpRules');
+  const startHelpButtons = document.querySelectorAll('[data-start-help]');
   const highScoreList = document.getElementById('highScoreList');
   const turnOverlay = document.getElementById('turnOverlay');
   const turnOverlayText = document.getElementById('turnOverlayText');
@@ -222,6 +230,53 @@
         <span class="high-score-meta">取得 ${Number(entry.owned) || 0}個<br>${formatHighScoreDate(entry.date)}</span>
       </li>`).join('');
   }
+
+  // START content stays inside the visible viewport without scrolling.
+  function fitStartPanel(panel, container) {
+    panel.style.transform = 'none';
+    const style = getComputedStyle(container);
+    const availableWidth = Math.max(1, container.clientWidth
+      - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+    const availableHeight = Math.max(1, container.clientHeight
+      - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom));
+    const scale = Math.min(1, availableWidth / panel.offsetWidth, availableHeight / panel.offsetHeight);
+    panel.style.transform = `scale(${Math.max(0.01, scale)})`;
+  }
+
+  function fitStartScreen() {
+    if (startScreen.hidden) return;
+    fitStartPanel(startCard, startScreen);
+    if (!startHelpOverlay.hidden) fitStartPanel(startHelpCard, startHelpOverlay);
+  }
+
+  let startHelpReturnFocus = null;
+  function closeStartHelp() {
+    if (startHelpOverlay.hidden) return;
+    startHelpOverlay.hidden = true;
+    fitStartScreen();
+    startHelpReturnFocus?.focus();
+    startHelpReturnFocus = null;
+  }
+
+  for (const button of startHelpButtons) {
+    button.addEventListener('click', () => {
+      const isIntro = button.dataset.startHelp === 'intro';
+      startHelpReturnFocus = button;
+      startHelpTitle.textContent = isIntro ? '初めての人へ' : '詳しい説明';
+      startHelpIntro.hidden = !isIntro;
+      startHelpRules.hidden = isIntro;
+      startHelpOverlay.hidden = false;
+      fitStartScreen();
+      startHelpClose.focus();
+    });
+  }
+  startHelpClose.addEventListener('click', closeStartHelp);
+  startHelpOverlay.addEventListener('pointerdown', event => {
+    if (event.target === startHelpOverlay) closeStartHelp();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !startHelpOverlay.hidden) closeStartHelp();
+  });
 
   function recordHighScore() {
     const record = {
@@ -1725,6 +1780,7 @@ actionsEl.addEventListener('lostpointercapture', event => {
     resizeQueued = true;
     requestAnimationFrame(() => {
       resizeQueued = false;
+      fitStartScreen();
       resizeCanvas();
     });
   }
@@ -1736,6 +1792,7 @@ actionsEl.addEventListener('lostpointercapture', event => {
 
   requestAnimationFrame(() => {
     renderHighScores();
+    fitStartScreen();
     resizeCanvas();
     reset(true);
   });
